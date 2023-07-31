@@ -7,23 +7,7 @@
     <title>Fantasy Realm Forge</title>
   </head>
   <body>
-    <div id="root">
-      <div id="map"></div>
-    </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script type="module">
-      
-      import MapMaker from './src/lib';
-      const map = new MapMaker.Map({ 
-        container: 'map',
-        width: 1024,
-        height: 512,
-      });
-      map.addSource('china', {type:'type', url:'src/assets/data/world-geojson.json'}, () => {
-       		console.log('source added');
-       	}, (err) => {
-       		console.log(err);
-       	});
-    </script>
   </body>
 </html>

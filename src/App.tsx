@@ -1,13 +1,13 @@
 import Layout from './components/Layout'
-import { WebGPUContextProvider } from './components/WebGPUContext';
+// import { WebGPUContextProvider } from './components/WebGPUContext';
 
 function App() {
 
     return (
 		<>
-			<WebGPUContextProvider>
+			{/* <WebGPUContextProvider> */}
 				<Layout />
-			</WebGPUContextProvider>
+			{/* </WebGPUContextProvider> */}
 		</>
     )
 }

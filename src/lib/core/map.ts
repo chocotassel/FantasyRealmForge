@@ -45,6 +45,8 @@ class map {
 
     constructor(options: MapOptions) {
         const container = document.getElementById(options.container)
+        console.log(container);
+        
         this._container = container || document.body;
         
         this._style = options?.style || "mapbox://styles/mapbox/streets-v11";
