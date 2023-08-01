@@ -6,13 +6,18 @@ class WebGPU {
     device?: GPUDevice;
 	pipeline?: GPURenderPipeline;
 
-    constructor(canvas: HTMLCanvasElement) {
+	ratio: number[];
+
+    constructor(canvas: HTMLCanvasElement, aspectRatio: number) {
         if (!canvas) {
             throw new Error('canvas is null!');
         }
         this.initialize(canvas);
+		this.ratio = this.getRenderRange(canvas, aspectRatio);
+		
     }
     
+	// 初始化GPU
     async initialize(canvas: HTMLCanvasElement) {
 		// 检查是否支持WebGPU
 		if (!navigator.gpu) {
@@ -55,6 +60,8 @@ class WebGPU {
 		this.createShaderModule(device, shaderCode, '', canvasFormat);
     }
 
+
+	// 创建着色器模块
 	async createShaderModule(device: GPUDevice, shaderCode: string, shaderType: string, format: GPUTextureFormat = 'bgra8unorm') {
 		
 		const cellShaderModule = device.createShaderModule({
@@ -115,6 +122,12 @@ class WebGPU {
 		return { verticesBuffer, indicesBuffer, indicesLength: indices.length };
 	};
 
+	// 获取渲染范围
+    getRenderRange(canvas: HTMLCanvasElement, aspectRatio: number) {
+        const { width, height } = canvas;
+		
+        return width / height > aspectRatio ? [1, width / height / aspectRatio] : [height / width * aspectRatio, 1];
+    }
 
 
 	// 执行绘制命令
@@ -132,7 +145,7 @@ class WebGPU {
 			throw new Error("WebGPU context could not be created.");
 		}
 
-		const {vertices, indices} = Parser.parseGeoJSON(data, center, zoom, bearing, pitch);
+		const {vertices, indices} = Parser.parseGeoJSON(data, center, zoom, bearing, pitch, this.ratio);
 
 		const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device, vertices, indices);
 

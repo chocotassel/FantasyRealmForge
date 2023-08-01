@@ -5,9 +5,9 @@ type Point = [number, number]
 
 class parser {
 
-	static projection ([longitude, latitude]: Point, offset: Point, scale: number): Point {
-		const x = (longitude + offset[0]) / 180 * scale;
-		const y = (latitude + offset[1]) / 90 * scale;
+	static projection ([longitude, latitude]: Point, offset: Point, scale: number, ratio: number[]): Point {
+		const x = (longitude - offset[0]) / 180 * ratio[0] * scale;
+		const y = (latitude - offset[1]) / 90 * ratio[1] * scale;
 		return [x, y];
 	};
 
@@ -17,6 +17,7 @@ class parser {
         scale: number,
 		bearing: number,
 		pitch: number,
+        ratio: number[],
     ): {vertices: Float32Array, indices: Uint16Array} {
         const features = geojson.features;
 
@@ -30,7 +31,7 @@ class parser {
                 if(coordinates) {
                     (coordinates as number[][][][]).forEach((contours) => {
                         contours.forEach((contour) => {
-                            const path = contour.flatMap(point => this.projection([point[0], point[1]], offset, scale));
+                            const path = contour.flatMap(point => this.projection([point[0], point[1]], offset, scale, ratio));
                             vertices.push(...path);
                             const pathIndices = earcut(path, [], 2);
                             indices.push(...pathIndices.map(i => i + currentIndex));
@@ -40,7 +41,7 @@ class parser {
                 }
             } else if(geometry.type === 'Polygon') {
                 const contours = geometry.coordinates as number[][][];
-                const path = contours[0].flatMap(point => this.projection([point[0], point[1]], offset, scale));
+                const path = contours[0].flatMap(point => this.projection([point[0], point[1]], offset, scale, ratio));
                 vertices.push(...path);
                 const pathIndices = earcut(path, [], 2);
                 indices.push(...pathIndices.map(i => i + currentIndex));

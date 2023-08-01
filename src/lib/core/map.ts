@@ -1,4 +1,5 @@
 // map.ts
+import lodash from 'lodash';
 import WebGPU from './engine/webgpu';
 
 import type { GeoJson } from '../types/geojson';
@@ -14,6 +15,7 @@ type MapOptions = {
     height?: number;
 }
 
+type Point = [number, number]
 
 /**
  * 地图类
@@ -30,22 +32,22 @@ class map {
     private _canvas: HTMLCanvasElement;
 
     private _style: string;
-    private _center: [number, number];
+    private _center: Point;
     private _zoom: number;
     private _bearing: number;
     private _pitch: number;
 
     private _sources: Map<string, GeoJson>;
     private _layers: string[];
-    private _lastMousePosition: [number, number] | null;
+    private _lastMousePosition: Point | null;
 
+    private aspectRatio: number = 2;
 
     private _WebGPU: WebGPU;
 
 
     constructor(options: MapOptions) {
         const container = document.getElementById(options.container)
-        console.log(container);
         
         this._container = container || document.body;
         
@@ -59,13 +61,14 @@ class map {
         this._layers = [];
 
         const canvas = document.createElement('canvas');
-        this._WebGPU = new WebGPU(canvas);
         this._container.appendChild(canvas);
         this._canvas = canvas;
 
         const width = options.width || this.container.clientWidth;
         const height = options.height || this.container.clientHeight;
         this.setCanvasOptions(width, height);
+
+        this._WebGPU = new WebGPU(canvas, this.aspectRatio);
 
         this._lastMousePosition = null;
     }
@@ -74,15 +77,30 @@ class map {
     setCanvasOptions(width: number, height: number) {
         this._canvas.width = width;
         this._canvas.height = height;
-        this._canvas.addEventListener('wheel', this.handleWheel.bind(this));
+        this._canvas.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
         this._canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
     }
     
     // 设置地图交互
-    handleWheel (event: WheelEvent) {
+    handleWheel = lodash.throttle( (event: WheelEvent) => {
         event.preventDefault();
+        const mousePointBeforeZoom  = [
+            this.center[0] + (event.offsetX / this.canvas.width - 0.5) / this.zoom * 360,
+            this.center[1] - (event.offsetY / this.canvas.height - 0.5) / this.zoom * 180 
+        ];
+        // console.log(this.center);
         this.zoom = this.zoom * Math.pow(0.99, event.deltaY * 0.1);
-    };
+        const mousePointAfterZoom = [
+            this.center[0] + (event.offsetX / this.canvas.width - 0.5) / this.zoom * 360,
+            this.center[1] - (event.offsetY / this.canvas.height - 0.5) / this.zoom * 180
+        ];
+        this.center[0] += (mousePointBeforeZoom[0] - mousePointAfterZoom[0]);
+        this.center[1] += (mousePointBeforeZoom[1] - mousePointAfterZoom[1]);
+        
+        if (event.deltaY > 0 && !this.boundary_check(this.center[1])) {
+            this.center = [this.center[0], this.center[1] > 0 ? this.getBoundary() : -this.getBoundary()];
+        }
+    }, 10);
 
     handleMouseDown (event: MouseEvent) {
         this._lastMousePosition = [event.clientX, event.clientY];
@@ -97,37 +115,39 @@ class map {
     };
 
 
-    handleMouseMove (event: MouseEvent) {
+    handleMouseMove = lodash.throttle((event: MouseEvent) => {
         if (!this._lastMousePosition) return;
 
         const dx = (event.clientX - this._lastMousePosition[0]) / window.innerWidth * 360 / this.zoom;
         const dy = (event.clientY - this._lastMousePosition[1]) / window.innerHeight * 180 / this.zoom;
         this._lastMousePosition = [event.clientX, event.clientY]; // 更新 lastMousePosition 为当前鼠标位置
+        
 
-        // const newOffsetX = offset[0] + dx;
-        // const newOffsetY = offset[1] - dy;
-    
-        // 检查是否超出范围
-        // if (newOffsetY >= -90 && newOffsetY <= 90) {
-        //     setOffset([newOffsetX, newOffsetY]);
-        // } else {
-        //     setOffset([newOffsetX, offset[1]]);
-        // // }
-        // setOffset(prevOffset => {
-        //     const newOffsetX = prevOffset[0] + dx;
-        //     const newOffsetY = prevOffset[1] - dy;
-        //     console.log(newOffsetX, newOffsetY, dx, dy);
-            
-        //     // 检查是否超出范围
-        //     if (newOffsetY >= -90 && newOffsetY <= 90) {
-        //         return [newOffsetX, newOffsetY];
-        //     } else {
-        //         return [newOffsetX, prevOffset[1]];
-        //     }
-        // });
+        // 检查是否超出范围 newOffsetY > 90 / zoom
+        const newOffsetY = this.center[1] + dy;
+        if (this.boundary_check(newOffsetY)){
+            this.center = [this.center[0] - dx, newOffsetY];
+        } else {
+            this.center = [this.center[0] - dx, this.center[1]];
+        }
 
-        this.center = [this.center[0] + dx, this.center[1] - dy];
-    };
+        // this.center = [this.center[0] + dx, this.center[1] - dy];
+        console.log(this.center);
+    }, 10);
+
+    boundary_check(y: number) {
+        // const range_ = Math.min(90, (zoom - 1) / 9 * 90)
+        const range_ = this.getBoundary();
+        return y >= -range_ && y <= range_
+    }
+
+    getBoundary() {
+        return 90 * (1 - 1 / this.zoom * this._canvas.height / this._canvas.width * this.aspectRatio);
+    }
+
+    // updateCenter = lodash.throttle((x: number, y: number) => this.center = [x, y], 100);
+      
+      
 
     // get set
     get container() { return this._container; }
@@ -154,7 +174,7 @@ class map {
     // 缩放级别。
     get zoom() { return this._zoom; }
     set zoom(zoom: number) { 
-        this._zoom = Math.min(Math.max(0.1, zoom), 10); 
+        this._zoom = Math.min(Math.max(1, zoom), 10); 
         this.render();
     }
 
@@ -172,10 +192,12 @@ class map {
         this.render();
     }
 
+
     // flyTo(options){ // 平滑地移动到一个位置。
     // }
 
-    // jumpTo(options){  // 瞬间移动到一个位置。
+    // jumpTo(point: Point){  // 瞬间移动到一个位置。
+    //     this.center = point;
     // }
 
     // easeTo(options){ // 平滑地移动到一个位置，但可以更详细地控制动画。
@@ -208,8 +230,6 @@ class map {
 
     // 添加一个数据源到地图上。
     async addSource(id: string, source: {type: string, url: string}, success?: Function, fail?: Function) {
-        console.log(id, source);
-        
         if(!this._sources || this._sources.has(id)) return;
         try {
             const response = await fetch(source.url);
