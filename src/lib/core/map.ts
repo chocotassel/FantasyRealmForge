@@ -13,6 +13,7 @@ type MapOptions = {
     pitch?: number;
     width?: number;
     height?: number;
+    aspectRatio?: number;
 }
 
 type Point = [number, number]
@@ -41,8 +42,6 @@ class map {
     private _layers: string[];
     private _lastMousePosition: Point | null;
 
-    private aspectRatio: number = 2;
-
     private _WebGPU: WebGPU;
 
 
@@ -68,7 +67,7 @@ class map {
         const height = options.height || this.container.clientHeight;
         this.setCanvasOptions(width, height);
 
-        this._WebGPU = new WebGPU(canvas, this.aspectRatio);
+        this._WebGPU = new WebGPU(canvas, options?.aspectRatio || 2);
 
         this._lastMousePosition = null;
     }
@@ -100,6 +99,7 @@ class map {
         if (event.deltaY > 0 && !this.boundary_check(this.center[1])) {
             this.center = [this.center[0], this.center[1] > 0 ? this.getBoundary() : -this.getBoundary()];
         }
+        
     }, 10);
 
     handleMouseDown (event: MouseEvent) {
@@ -136,13 +136,12 @@ class map {
     }, 10);
 
     boundary_check(y: number) {
-        // const range_ = Math.min(90, (zoom - 1) / 9 * 90)
         const range_ = this.getBoundary();
         return y >= -range_ && y <= range_
     }
 
     getBoundary() {
-        return 90 * (1 - 1 / this.zoom * this._canvas.height / this._canvas.width * this.aspectRatio);
+        return 90 * (1 - 1 / this.zoom);
     }
 
     // updateCenter = lodash.throttle((x: number, y: number) => this.center = [x, y], 100);

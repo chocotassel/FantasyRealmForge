@@ -7,7 +7,7 @@ function Layout() {
 		if (document.getElementById('map')?.innerHTML) return;
 		const map = new MapMaker.Map({ 
 			container: 'map',
-			width: 1024,
+			width: 512,
 			height: 512,
 		});
 

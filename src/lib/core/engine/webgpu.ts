@@ -6,16 +6,42 @@ class WebGPU {
     device?: GPUDevice;
 	pipeline?: GPURenderPipeline;
 
-	ratio: number[];
+	aspectRatio: number;
+	affineMatrix: Float32Array;
+
+	matrixUniformBuffer?: GPUBuffer;
 
     constructor(canvas: HTMLCanvasElement, aspectRatio: number) {
         if (!canvas) {
             throw new Error('canvas is null!');
         }
         this.initialize(canvas);
-		this.ratio = this.getRenderRange(canvas, aspectRatio);
-		
+		this.aspectRatio = aspectRatio;
+		this.affineMatrix = this.calculateAffineMatrix(canvas.width, canvas.height);
     }
+
+	calculateAffineMatrix(canvasWidth: number, canvasHeight: number): Float32Array {
+		// 计算画布的宽高比，并找到适合2:1宽高比的缩放因子
+		const aspectRatio = canvasWidth / canvasHeight;
+		const targetAspectRatio = this.aspectRatio; // 目标宽高比为2:1
+		let scaleX, scaleY;
+		if (aspectRatio >= targetAspectRatio) {
+			// 如果画布宽高比大于或等于2:1，则按高度缩放
+			scaleY = aspectRatio / targetAspectRatio;
+			scaleX = 1;
+		} else {
+			// 如果画布宽高比小于2:1，则按宽度缩放
+			scaleX = targetAspectRatio / aspectRatio;
+			scaleY = 1;
+		}
+
+		// 仿射矩阵
+		return new Float32Array([
+			scaleX, 0, 0, 0,
+			0, scaleY, 0, 0,
+			0, 0, 0, 0
+		]);
+	}
     
 	// 初始化GPU
     async initialize(canvas: HTMLCanvasElement) {
@@ -45,16 +71,18 @@ class WebGPU {
         this.ctx = ctx;
 
 		const shaderCode = `
-			// Vertex shader
+			@group(0) @binding(0) var<uniform> matrix: mat4x4<f32>;
+		
 			@vertex
 			fn vs_main(@location(0) position: vec2<f32>) -> @builtin(position) vec4<f32> {
-				return vec4<f32>(position, 0.0, 1.0);
+				var transformedPosition3 = mat3x3<f32>(matrix[0].xyz, matrix[1].xyz, matrix[2].xyz) * vec3<f32>(position, 1.0);
+				var transformedPosition: vec2<f32> = transformedPosition3.xy;
+				return vec4<f32>(transformedPosition, 0.0, 1.0);
 			}
-
-			// Fragment shader
+		
 			@fragment
 			fn fs_main() -> @location(0) vec4<f32> {
-				return vec4<f32>(1.0, 1.0, 1.0, 1.0); 
+				return vec4<f32>(1.0, 1.0, 1.0, 1.0);
 			}
 		`
 		this.createShaderModule(device, shaderCode, '', canvasFormat);
@@ -68,6 +96,8 @@ class WebGPU {
 			label: 'Cell shader',
 			code: shaderCode,
 		});
+		
+  
 		// 创建渲染管道
 		const pipeline = device.createRenderPipeline({
 			label: 'render pipeline',
@@ -122,13 +152,6 @@ class WebGPU {
 		return { verticesBuffer, indicesBuffer, indicesLength: indices.length };
 	};
 
-	// 获取渲染范围
-    getRenderRange(canvas: HTMLCanvasElement, aspectRatio: number) {
-        const { width, height } = canvas;
-		
-        return width / height > aspectRatio ? [1, width / height / aspectRatio] : [height / width * aspectRatio, 1];
-    }
-
 
 	// 执行绘制命令
 	render(
@@ -145,24 +168,46 @@ class WebGPU {
 			throw new Error("WebGPU context could not be created.");
 		}
 
-		const {vertices, indices} = Parser.parseGeoJSON(data, center, zoom, bearing, pitch, this.ratio);
+		const {vertices, indices} = Parser.parseGeoJSON(data, center, zoom, bearing, pitch);
 
 		const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device, vertices, indices);
+
+		console.log(this.affineMatrix);
+		
+		// 在GPU显存上创建一个uniform数据缓冲区
+		const uniformBufferSize = 64 
+		const mat4Buffer = this.device.createBuffer({
+			label: 'affine matrix',
+			size: uniformBufferSize,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+		});
+		const bindGroup = this.device.createBindGroup({
+			layout: this.pipeline.getBindGroupLayout(0),
+			entries: [{
+				binding: 0,
+				resource: { buffer: mat4Buffer },
+			}],
+		})
+		this.device.queue.writeBuffer(mat4Buffer, 0, this.affineMatrix)
+
 
 		// 创建渲染通道
 		const commandEncoder = this.device.createCommandEncoder();
 		const textureView = this.ctx.getCurrentTexture().createView();
 		const renderPass = commandEncoder.beginRenderPass({
+			label: 'our basic canvas renderPass',
 			colorAttachments: [{
 				view: textureView,
-				loadOp: "clear",
 				clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
+				loadOp: "clear",
 				storeOp: "store",
 			}]
 		});
 
+
 		// 执行绘制命令
 		renderPass.setPipeline(this.pipeline);
+		renderPass.setBindGroup(0, bindGroup);
 		renderPass.setVertexBuffer(0, verticesBuffer);
 		renderPass.setIndexBuffer(indicesBuffer, 'uint16');
 		renderPass.drawIndexed(indicesLength);
