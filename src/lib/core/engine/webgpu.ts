@@ -1,4 +1,4 @@
-import type { GeoJson } from '../../types/geojson';
+import type { GeoJson, Point, Source } from '../../types';
 import Parser from '../data/parser';
 
 class WebGPU {
@@ -7,7 +7,6 @@ class WebGPU {
 	pipeline?: GPURenderPipeline;
 
 	aspectRatio: number;
-	affineMatrix: Float32Array;
 
 	matrixUniformBuffer?: GPUBuffer;
 
@@ -17,31 +16,8 @@ class WebGPU {
         }
         this.initialize(canvas);
 		this.aspectRatio = aspectRatio;
-		this.affineMatrix = this.calculateAffineMatrix(canvas.width, canvas.height);
+		// this.affineMatrix = this.calculateAffineMatrix(canvas.width, canvas.height, 1);
     }
-
-	calculateAffineMatrix(canvasWidth: number, canvasHeight: number): Float32Array {
-		// 计算画布的宽高比，并找到适合2:1宽高比的缩放因子
-		const aspectRatio = canvasWidth / canvasHeight;
-		const targetAspectRatio = this.aspectRatio; // 目标宽高比为2:1
-		let scaleX, scaleY;
-		if (aspectRatio >= targetAspectRatio) {
-			// 如果画布宽高比大于或等于2:1，则按高度缩放
-			scaleY = aspectRatio / targetAspectRatio;
-			scaleX = 1;
-		} else {
-			// 如果画布宽高比小于2:1，则按宽度缩放
-			scaleX = targetAspectRatio / aspectRatio;
-			scaleY = 1;
-		}
-
-		// 仿射矩阵
-		return new Float32Array([
-			scaleX, 0, 0, 0,
-			0, scaleY, 0, 0,
-			0, 0, 0, 0
-		]);
-	}
     
 	// 初始化GPU
     async initialize(canvas: HTMLCanvasElement) {
@@ -69,13 +45,18 @@ class WebGPU {
 			format: canvasFormat,
 		});
         this.ctx = ctx;
-
+		
+		// 
 		const shaderCode = `
 			@group(0) @binding(0) var<uniform> matrix: mat4x4<f32>;
 		
 			@vertex
 			fn vs_main(@location(0) position: vec2<f32>) -> @builtin(position) vec4<f32> {
-				var transformedPosition3 = mat3x3<f32>(matrix[0].xyz, matrix[1].xyz, matrix[2].xyz) * vec3<f32>(position, 1.0);
+				var mat = mat3x3<f32>(
+					matrix[0].x, matrix[1].x, matrix[2].x,
+					matrix[0].y, matrix[1].y, matrix[2].y,
+					matrix[0].z, matrix[1].z, matrix[2].z);
+				var transformedPosition3 = mat * vec3<f32>(position, 1.0);
 				var transformedPosition: vec2<f32> = transformedPosition3.xy;
 				return vec4<f32>(transformedPosition, 0.0, 1.0);
 			}
@@ -129,6 +110,9 @@ class WebGPU {
 		this.pipeline = pipeline;
 	}
 
+	loadData(data: GeoJson) {
+		return Parser.parseGeoJSONToLonLat(data);
+	}
 
 	// 创建顶点和索引缓冲区
 	createBuffers(device: GPUDevice, vertices: Float32Array, indices: Uint16Array): { verticesBuffer: GPUBuffer, indicesBuffer: GPUBuffer, indicesLength: number } {
@@ -152,27 +136,83 @@ class WebGPU {
 		return { verticesBuffer, indicesBuffer, indicesLength: indices.length };
 	};
 
+	calculateAffineMatrix(
+		canvasWidth: number, 
+		canvasHeight: number, 
+		center: Point,
+		scale: number,
+		bearing: number,
+		pitch: number,
+	): Float32Array {
+		// 计算画布的宽高比，并找到适合2:1宽高比的缩放因子
+		const aspectRatio = canvasWidth / canvasHeight;
+		const targetAspectRatio = this.aspectRatio; // 目标宽高比为2:1
+		let scaleX, scaleY;
+		if (aspectRatio >= targetAspectRatio) {
+			// 如果画布宽高比大于或等于2:1，则按高度缩放
+			scaleX = scale / 180;
+			scaleY = aspectRatio / targetAspectRatio * scale / 90;
+		} else {
+			// 如果画布宽高比小于2:1，则按宽度缩放
+			scaleX = targetAspectRatio / aspectRatio * scale / 180;
+			scaleY = scale / 90;
+		}
+
+		// 计算旋转角的余弦和正弦值
+		const cosBearing = Math.cos(bearing);
+		const sinBearing = Math.sin(bearing);
+	
+		// 计算中心点的墨卡托坐标
+		// const centerX = center[0];
+		// const centerY = Math.log(Math.tan(Math.PI / 4 + center[1] / 2));
+		
+		//
+		const offsetX = -center[0] * scaleX
+		const offsetY = -center[1] * scaleY
+
+		console.log(offsetX, offsetY);
+		
+	
+		// 构造仿射矩阵
+		return new Float32Array([
+			scaleX * cosBearing, scaleY * sinBearing, offsetX, 0,
+			-scaleX * sinBearing, scaleY * cosBearing, offsetY, 0,
+			0, 0, 1, 0,
+			0, 0, 0, 0
+		]);
+
+		// 仿射矩阵
+		return new Float32Array([
+			scaleX, 0, 0, 0,
+			0, scaleY, 0, 0,
+			0, 0, 0, 0
+		]);
+	}
+
 
 	// 执行绘制命令
 	render(
-		data: GeoJson, 
+		source: Source,
 		style: string,
-		center: [number, number],
+		center: Point,
 		zoom: number,
 		bearing: number,
 		pitch: number,
 	) {
 		if (!this.ctx || !this.device || !this.pipeline) {
 			console.log(this.ctx, this.device, this.pipeline);
-			
 			throw new Error("WebGPU context could not be created.");
 		}
 
-		const {vertices, indices} = Parser.parseGeoJSON(data, center, zoom, bearing, pitch);
+		if (!source.vertices || !source.indices) {
+			throw new Error("Data is not loaded.");
+		}
 
-		const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device, vertices, indices);
+		// const {vertices, indices} = Parser.parseGeoJSON(data, center, zoom, bearing, pitch);
+		const affineMatrix = this.calculateAffineMatrix(this.ctx.canvas.width, this.ctx.canvas.height, center, zoom, bearing, pitch);
 
-		console.log(this.affineMatrix);
+		const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device, source.vertices, source.indices);
+
 		
 		// 在GPU显存上创建一个uniform数据缓冲区
 		const uniformBufferSize = 64 
@@ -188,7 +228,7 @@ class WebGPU {
 				resource: { buffer: mat4Buffer },
 			}],
 		})
-		this.device.queue.writeBuffer(mat4Buffer, 0, this.affineMatrix)
+		this.device.queue.writeBuffer(mat4Buffer, 0, affineMatrix)
 
 
 		// 创建渲染通道

@@ -2,21 +2,8 @@
 import lodash from 'lodash';
 import WebGPU from './engine/webgpu';
 
-import type { GeoJson } from '../types/geojson';
+import type { GeoJson, MapOptions, Point, Source } from '../types';
 
-type MapOptions = {
-    container: string;
-    style?: string;
-    center?: [number, number];
-    zoom?: number;
-    bearing?: number;
-    pitch?: number;
-    width?: number;
-    height?: number;
-    aspectRatio?: number;
-}
-
-type Point = [number, number]
 
 /**
  * 地图类
@@ -38,7 +25,7 @@ class map {
     private _bearing: number;
     private _pitch: number;
 
-    private _sources: Map<string, GeoJson>;
+    private _sources: Map<string, Source>;
     private _layers: string[];
     private _lastMousePosition: Point | null;
 
@@ -56,7 +43,7 @@ class map {
         this._bearing = options?.bearing || 0;
         this._pitch = options?.pitch || 0;
 
-        this._sources = new Map<string, GeoJson>();
+        this._sources = new Map<string, Source>();
         this._layers = [];
 
         const canvas = document.createElement('canvas');
@@ -132,7 +119,7 @@ class map {
         }
 
         // this.center = [this.center[0] + dx, this.center[1] - dy];
-        console.log(this.center);
+        // console.log(this.center);
     }, 10);
 
     boundary_check(y: number) {
@@ -228,14 +215,18 @@ class map {
     }
 
     // 添加一个数据源到地图上。
-    async addSource(id: string, source: {type: string, url: string}, success?: Function, fail?: Function) {
+    async addSource(id: string, s: {type: string, url: string}, success?: Function, fail?: Function) {
         if(!this._sources || this._sources.has(id)) return;
         try {
-            const response = await fetch(source.url);
+            const response = await fetch(s.url);
             const worldData: GeoJson = await response.json();
-            this._sources.set(id, worldData);
             this._layers.push(id);
-            this._WebGPU.render(worldData, this.style, this.center, this.zoom, this.bearing, this.pitch);
+
+            const {vertices, indices} = this._WebGPU.loadData(worldData);
+            const source: Source = {type: s.type, vertices, indices};
+            this._sources.set(id, source);
+
+            this.render();
             if(success) success();
         } catch (error) {
             if(fail) fail(error);
