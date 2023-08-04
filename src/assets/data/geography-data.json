@@ -1,0 +1,75 @@
+{
+	"type": "FeatureCollection",
+	"properties": { 
+		"description": "地貌 Geography",
+		"resolution": "high",
+		"source": "National Geographic Agency"
+	},
+	"features": [
+		{
+		"type": "Feature",
+		"id": "1",
+		"properties": {
+			"name": "mainland"
+		},
+		"geometry": {
+			"type": "GeometryCollection",
+			"geometries": [
+				{
+					"type": "MultiPoint",
+					"coordinates": [
+						[10.0, 10.0, 200],
+						[20.0, 20.0, 400],
+						[30.0, 40.0, 200]
+					]
+				},
+				{
+					"type": "Polygon",
+					"coordinates": [
+						[
+							[0.0, 0.0], 
+							[50.0, 0.0],
+							[50.0, 50.0],
+							[0.0, 50.0],
+							[0.0, 0.0]
+						]
+					]
+				}
+			]
+		}
+		},
+		{
+		"type": "Feature",
+		"id": "2",
+		"properties": {
+			"name": "ocean"
+		},
+		"geometry": {
+			"type": "GeometryCollection",
+			"geometries": [
+				{
+					"type": "MultiPoint",
+					"coordinates": [
+						[-10.0, -10.0, -200],
+						[-20.0, -20.0, -400],
+						[-30.0, -40.0, -200]
+					]
+				},
+				{
+					"type": "Polygon",
+					"coordinates": [
+						[
+							[0.0, 0.0], 
+							[50.0, 0.0],
+							[50.0, 50.0],
+							[0.0, 50.0],
+							[0.0, 0.0]
+						]
+					]
+				}
+			]
+		}
+		}
+		
+	]
+}

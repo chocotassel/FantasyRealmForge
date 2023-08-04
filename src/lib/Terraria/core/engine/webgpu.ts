@@ -1,20 +1,44 @@
-import type { GeoJson, Point, Source } from '../../types';
+import type { GeoJson, Layer, Point } from '../../types';
 import Parser from '../data/parser';
 
 class WebGPU {
     ctx?: GPUCanvasContext;
     device?: GPUDevice;
-	pipeline?: GPURenderPipeline;
+	// pipeline?: GPURenderPipeline;
+	pipelinePoint?: GPURenderPipeline;
+	pipelineLine?: GPURenderPipeline;
+	pipelineTriangle?: GPURenderPipeline;
 
 	aspectRatio: number;
 
 	matrixUniformBuffer?: GPUBuffer;
 
-    constructor(canvas: HTMLCanvasElement, aspectRatio: number) {
-        if (!canvas) {
-            throw new Error('canvas is null!');
-        }
-        this.initialize(canvas);
+	// 着色器
+	shaderCode: string = `
+		@group(0) @binding(0) var<uniform> matrix: mat4x4<f32>;
+	
+		@vertex
+		fn vs_main(@location(0) position: vec2<f32>) -> @builtin(position) vec4<f32> {
+			var mat = mat3x3<f32>(
+				matrix[0].x, matrix[1].x, matrix[2].x,
+				matrix[0].y, matrix[1].y, matrix[2].y,
+				matrix[0].z, matrix[1].z, matrix[2].z);
+			var transformedPosition3 = mat * vec3<f32>(position, 1.0);
+			var transformedPosition: vec2<f32> = transformedPosition3.xy;
+			return vec4<f32>(transformedPosition, 0.0, 1.0);
+		}
+	
+		@fragment
+		fn fs_main() -> @location(0) vec4<f32> {
+			return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+		}
+	`
+
+    constructor(aspectRatio: number) {
+        // if (!canvas) {
+        //     throw new Error('canvas is null!');
+        // }
+        // this.initialize(canvas);
 		this.aspectRatio = aspectRatio;
 		// this.affineMatrix = this.calculateAffineMatrix(canvas.width, canvas.height, 1);
     }
@@ -46,40 +70,25 @@ class WebGPU {
 		});
         this.ctx = ctx;
 		
-		// 
-		const shaderCode = `
-			@group(0) @binding(0) var<uniform> matrix: mat4x4<f32>;
-		
-			@vertex
-			fn vs_main(@location(0) position: vec2<f32>) -> @builtin(position) vec4<f32> {
-				var mat = mat3x3<f32>(
-					matrix[0].x, matrix[1].x, matrix[2].x,
-					matrix[0].y, matrix[1].y, matrix[2].y,
-					matrix[0].z, matrix[1].z, matrix[2].z);
-				var transformedPosition3 = mat * vec3<f32>(position, 1.0);
-				var transformedPosition: vec2<f32> = transformedPosition3.xy;
-				return vec4<f32>(transformedPosition, 0.0, 1.0);
-			}
-		
-			@fragment
-			fn fs_main() -> @location(0) vec4<f32> {
-				return vec4<f32>(1.0, 1.0, 1.0, 1.0);
-			}
-		`
-		this.createShaderModule(device, shaderCode, '', canvasFormat);
+		this.pipelinePoint = await this.createPipeline(device, this.shaderCode, '', canvasFormat, 'point-list');
+		this.pipelineLine = await this.createPipeline(device, this.shaderCode, '', canvasFormat, 'line-list');
+		this.pipelineTriangle = await this.createPipeline(device, this.shaderCode, '', canvasFormat, 'triangle-list');
     }
 
 
-	// 创建着色器模块
-	async createShaderModule(device: GPUDevice, shaderCode: string, shaderType: string, format: GPUTextureFormat = 'bgra8unorm') {
-		
+	// 创建渲染管道
+	async createPipeline(
+		device: GPUDevice, 
+		shaderCode: string, 
+		shaderType: string, 
+		format: GPUTextureFormat = 'bgra8unorm', 
+		topology: GPUPrimitiveTopology = 'triangle-list'
+	): Promise<GPURenderPipeline> {
 		const cellShaderModule = device.createShaderModule({
 			label: 'Cell shader',
 			code: shaderCode,
 		});
-		
   
-		// 创建渲染管道
 		const pipeline = device.createRenderPipeline({
 			label: 'render pipeline',
 			layout: 'auto',
@@ -104,19 +113,15 @@ class WebGPU {
 				}],
 			},
 			primitive: {
-				topology: 'triangle-list',
+				topology,
 			},
 		});
-		this.pipeline = pipeline;
-	}
-
-	loadData(data: GeoJson) {
-		return Parser.parseGeoJSONToLonLat(data);
+		// this.pipeline = pipeline;
+		return pipeline;
 	}
 
 	// 创建顶点和索引缓冲区
 	createBuffers(device: GPUDevice, vertices: Float32Array, indices: Uint16Array): { verticesBuffer: GPUBuffer, indicesBuffer: GPUBuffer, indicesLength: number } {
-		
 		const verticesBuffer = device.createBuffer({
 			size: vertices.byteLength,
 			usage: GPUBufferUsage.VERTEX,
@@ -125,16 +130,26 @@ class WebGPU {
 		new Float32Array(verticesBuffer.getMappedRange()).set(vertices);
 		verticesBuffer.unmap();
 
+		// 检查索引数量是否为偶数
+		let indicesLength = indices.length;
+		let paddedIndices = indices;
+		if (indicesLength % 2 !== 0) {
+		// 如果索引数量为奇数，添加一个额外的索引
+		paddedIndices = new Uint16Array(indicesLength + 1);
+		paddedIndices.set(indices);
+		paddedIndices[indicesLength] = 0; // 可以设置为一个已存在的顶点索引
+		}
+
 		const indicesBuffer = device.createBuffer({
-			size: indices.byteLength,
+			size: paddedIndices.byteLength,
 			usage: GPUBufferUsage.INDEX,
 			mappedAtCreation: true,
 		});
-		new Uint16Array(indicesBuffer.getMappedRange()).set(indices);
+		new Uint16Array(indicesBuffer.getMappedRange()).set(paddedIndices);
 		indicesBuffer.unmap();
 
-		return { verticesBuffer, indicesBuffer, indicesLength: indices.length };
-	};
+		return { verticesBuffer, indicesBuffer, indicesLength };
+	}
 
 	calculateAffineMatrix(
 		canvasWidth: number, 
@@ -169,8 +184,6 @@ class WebGPU {
 		//
 		const offsetX = -center[0] * scaleX
 		const offsetY = -center[1] * scaleY
-
-		console.log(offsetX, offsetY);
 		
 	
 		// 构造仿射矩阵
@@ -180,39 +193,24 @@ class WebGPU {
 			0, 0, 1, 0,
 			0, 0, 0, 0
 		]);
-
-		// 仿射矩阵
-		return new Float32Array([
-			scaleX, 0, 0, 0,
-			0, scaleY, 0, 0,
-			0, 0, 0, 0
-		]);
 	}
 
 
 	// 执行绘制命令
 	render(
-		source: Source,
+		layer: Layer,
 		style: string,
 		center: Point,
 		zoom: number,
 		bearing: number,
 		pitch: number,
 	) {
-		if (!this.ctx || !this.device || !this.pipeline) {
-			console.log(this.ctx, this.device, this.pipeline);
+		if (!this.ctx || !this.device) {
+			console.log(this.ctx, this.device);
 			throw new Error("WebGPU context could not be created.");
 		}
 
-		if (!source.vertices || !source.indices) {
-			throw new Error("Data is not loaded.");
-		}
-
-		// const {vertices, indices} = Parser.parseGeoJSON(data, center, zoom, bearing, pitch);
 		const affineMatrix = this.calculateAffineMatrix(this.ctx.canvas.width, this.ctx.canvas.height, center, zoom, bearing, pitch);
-
-		const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device, source.vertices, source.indices);
-
 		
 		// 在GPU显存上创建一个uniform数据缓冲区
 		const uniformBufferSize = 64 
@@ -221,15 +219,7 @@ class WebGPU {
 			size: uniformBufferSize,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 		});
-		const bindGroup = this.device.createBindGroup({
-			layout: this.pipeline.getBindGroupLayout(0),
-			entries: [{
-				binding: 0,
-				resource: { buffer: mat4Buffer },
-			}],
-		})
 		this.device.queue.writeBuffer(mat4Buffer, 0, affineMatrix)
-
 
 		// 创建渲染通道
 		const commandEncoder = this.device.createCommandEncoder();
@@ -244,13 +234,38 @@ class WebGPU {
 			}]
 		});
 
+		for (const primitive of layer.data) {
+			const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device, primitive.vertices, primitive.indices);
+			
+			let pipeline 
+			switch(primitive.type) {
+				case 'point':
+					pipeline = this.pipelinePoint;
+					break;
+				case 'line':
+					pipeline = this.pipelineLine;
+					break;
+				case 'triangle':
+					pipeline = this.pipelineTriangle;
+					break;	
+				default:
+					throw new Error('primitive type not supported')
+			}
 
-		// 执行绘制命令
-		renderPass.setPipeline(this.pipeline);
-		renderPass.setBindGroup(0, bindGroup);
-		renderPass.setVertexBuffer(0, verticesBuffer);
-		renderPass.setIndexBuffer(indicesBuffer, 'uint16');
-		renderPass.drawIndexed(indicesLength);
+			const bindGroup = this.device.createBindGroup({
+				layout: pipeline!.getBindGroupLayout(0),
+				entries: [{
+					binding: 0,
+					resource: { buffer: mat4Buffer },
+				}],
+			})
+			// 执行绘制命令
+			renderPass.setPipeline(pipeline!);
+			renderPass.setBindGroup(0, bindGroup);
+			renderPass.setVertexBuffer(0, verticesBuffer);
+			renderPass.setIndexBuffer(indicesBuffer, 'uint16');
+			renderPass.drawIndexed(indicesLength);
+		}
 		renderPass.end();
 
 		// 提交命令

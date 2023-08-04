@@ -1,8 +1,9 @@
 // map.ts
 import lodash from 'lodash';
 import WebGPU from './engine/webgpu';
+import Parser from './data/parser';
 
-import type { GeoJson, MapOptions, Point, Source } from '../types';
+import type { GeoJson, MapOptions, Point, Layer, Primitive } from '../types';
 
 
 /**
@@ -25,8 +26,9 @@ class map {
     private _bearing: number;
     private _pitch: number;
 
-    private _sources: Map<string, Source>;
-    private _layers: string[];
+    // private _sources: Map<string, Source>;
+    private _layers: Map<string, Layer>;
+    private _activeLayer: Set<string>;
     private _lastMousePosition: Point | null;
 
     private _WebGPU: WebGPU;
@@ -43,8 +45,8 @@ class map {
         this._bearing = options?.bearing || 0;
         this._pitch = options?.pitch || 0;
 
-        this._sources = new Map<string, Source>();
-        this._layers = [];
+        this._layers = new Map<string, Layer>();
+        this._activeLayer = new Set<string>();
 
         const canvas = document.createElement('canvas');
         this._container.appendChild(canvas);
@@ -54,9 +56,19 @@ class map {
         const height = options.height || this.container.clientHeight;
         this.setCanvasOptions(width, height);
 
-        this._WebGPU = new WebGPU(canvas, options?.aspectRatio || 2);
+        this._WebGPU = new WebGPU(options?.aspectRatio || 2);
 
         this._lastMousePosition = null;
+    }
+
+    async initGPU(): Promise<void>{
+        try {
+            await this._WebGPU.initialize(this._canvas);
+            return 
+        } catch (error) {
+            console.error(error);
+            throw error;
+        }
     }
 
     // canvas设置
@@ -207,25 +219,27 @@ class map {
 
     // 渲染
     render() {
-        for (const layer of this._layers) {
-            const source = this._sources.get(layer);
-            if (!source) continue;
-            this._WebGPU.render(source, this.style, this.center, this.zoom, this.bearing, this.pitch);
+        for (const layerId of this._activeLayer) {
+            const layer = this._layers.get(layerId);
+            if (!layer) continue;
+            this._WebGPU.render(layer, this.style, this.center, this.zoom, this.bearing, this.pitch);
         }
     }
 
     // 添加一个数据源到地图上。
-    async addSource(id: string, s: {type: string, url: string}, success?: Function, fail?: Function) {
-        if(!this._sources || this._sources.has(id)) return;
+    async addSource(id: string, url: string, options?: any, success?: Function, fail?: Function) {
+        if(!this._layers || this._layers.has(id)) return;
         try {
-            const response = await fetch(s.url);
-            const worldData: GeoJson = await response.json();
-            this._layers.push(id);
+            const response = await fetch(url);
+            const data: GeoJson = await response.json();
+            const layer = Parser.parseGeoJSON(data, options);
+            // const layer = Parser.parseGeoJSONToLonLat(data);
 
-            const {vertices, indices} = this._WebGPU.loadData(worldData);
-            const source: Source = {type: s.type, vertices, indices};
-            this._sources.set(id, source);
-
+            if(!layer) throw new Error('数据源解析失败');
+            this._activeLayer.add(id);
+            this._layers.set(id, layer);
+            console.log(layer);
+            
             this.render();
             if(success) success();
         } catch (error) {
@@ -233,9 +247,10 @@ class map {
         }
     }
 
-    removeSource(id: string){ // 从地图中移除一个数据源。
-        if(!this._sources || !this._sources.has(id)) return;
-        this._sources.delete(id);
+    // 从地图中移除一个数据源。
+    removeSource(id: string){ 
+        if(!this._layers || !this._layers.has(id)) return;
+        this._layers.delete(id);
     }
 
     // 加载数据
