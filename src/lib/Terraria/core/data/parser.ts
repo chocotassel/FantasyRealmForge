@@ -16,8 +16,6 @@ class parser {
         geojson: GeoJson, 
         options?: any
     ): Layer | void {
-        console.log(geojson);
-        
         if (Array.isArray(geojson)) {
             for (const item of geojson) {
                 this.parseGeoJSON(item, options);
@@ -28,9 +26,9 @@ class parser {
             throw new Error('未定义地图属性。');
         }
 
-        if (geojson.properties.resolution === 'high') {
-            return this.generateContourLines(geojson, options.contourInterval);
-        }
+        // if (geojson.properties.resolution === 'high') {
+        //     return this.generateContourLines(geojson, options.contourInterval);
+        // }
 
         const data: Primitive[] = [];
         
@@ -39,11 +37,13 @@ class parser {
         const pp = this.parsePoint(points)
         const pl = this.parseLine(lines);
         const pg = this.parsePolygon(polygons);
+
+        data.push(pp, pl, pg);
         
         return {
             type: 'flat',
             properties: geojson.properties,
-            data: [pp, pl, pg]
+            data
         }
     }
 

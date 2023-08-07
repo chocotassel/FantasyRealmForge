@@ -161,11 +161,13 @@ map create engine -- Stacia
     },
     "data": [
         {   // 单个等高面上的所有等高线
+            type,
             color,
             vertices,
             indices
         },
         {
+            type,
             color,
             vertices,
             indices

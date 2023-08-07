@@ -1,38 +1,20 @@
-import type { GeoJson, Layer, Point } from '../../types';
-import Parser from '../data/parser';
+import type { Layer, Point } from '../../types';
+import pointWGSL from '../shader/point.wgsl';
+import triangleWGSL from '../shader/default.wgsl';
+import { mat4 } from 'gl-matrix';
 
 class WebGPU {
     ctx?: GPUCanvasContext;
     device?: GPUDevice;
 	// pipeline?: GPURenderPipeline;
-	pipelinePoint?: GPURenderPipeline;
-	pipelineLine?: GPURenderPipeline;
-	pipelineTriangle?: GPURenderPipeline;
+	pointPipeline?: GPURenderPipeline;
+	linePipeline?: GPURenderPipeline;
+	trianglePipeline?: GPURenderPipeline;
 
 	aspectRatio: number;
 
 	matrixUniformBuffer?: GPUBuffer;
 
-	// 着色器
-	shaderCode: string = `
-		@group(0) @binding(0) var<uniform> matrix: mat4x4<f32>;
-	
-		@vertex
-		fn vs_main(@location(0) position: vec2<f32>) -> @builtin(position) vec4<f32> {
-			var mat = mat3x3<f32>(
-				matrix[0].x, matrix[1].x, matrix[2].x,
-				matrix[0].y, matrix[1].y, matrix[2].y,
-				matrix[0].z, matrix[1].z, matrix[2].z);
-			var transformedPosition3 = mat * vec3<f32>(position, 1.0);
-			var transformedPosition: vec2<f32> = transformedPosition3.xy;
-			return vec4<f32>(transformedPosition, 0.0, 1.0);
-		}
-	
-		@fragment
-		fn fs_main() -> @location(0) vec4<f32> {
-			return vec4<f32>(1.0, 1.0, 1.0, 1.0);
-		}
-	`
 
     constructor(aspectRatio: number) {
         // if (!canvas) {
@@ -44,7 +26,7 @@ class WebGPU {
     }
     
 	// 初始化GPU
-    async initialize(canvas: HTMLCanvasElement) {
+    async initialize(canvas: HTMLCanvasElement, options?: any) {
 		// 检查是否支持WebGPU
 		if (!navigator.gpu) {
 			throw new Error("WebGPU not supported on this browser.");
@@ -69,10 +51,14 @@ class WebGPU {
 			format: canvasFormat,
 		});
         this.ctx = ctx;
+
+		if (options) {
+			console.log(options);
+		}
 		
-		this.pipelinePoint = await this.createPipeline(device, this.shaderCode, '', canvasFormat, 'point-list');
-		this.pipelineLine = await this.createPipeline(device, this.shaderCode, '', canvasFormat, 'line-list');
-		this.pipelineTriangle = await this.createPipeline(device, this.shaderCode, '', canvasFormat, 'triangle-list');
+		this.pointPipeline = await this.createPipeline(device, pointWGSL, canvasFormat, 'point-list');
+		this.linePipeline = await this.createPipeline(device, triangleWGSL, canvasFormat, 'line-list');
+		this.trianglePipeline = await this.createPipeline(device, triangleWGSL, canvasFormat, 'triangle-list');
     }
 
 
@@ -80,7 +66,6 @@ class WebGPU {
 	async createPipeline(
 		device: GPUDevice, 
 		shaderCode: string, 
-		shaderType: string, 
 		format: GPUTextureFormat = 'bgra8unorm', 
 		topology: GPUPrimitiveTopology = 'triangle-list'
 	): Promise<GPURenderPipeline> {
@@ -115,8 +100,11 @@ class WebGPU {
 			primitive: {
 				topology,
 			},
+			// multisample: {
+			// 	count: 2,
+			// }
 		});
-		// this.pipeline = pipeline;
+		
 		return pipeline;
 	}
 
@@ -150,6 +138,24 @@ class WebGPU {
 
 		return { verticesBuffer, indicesBuffer, indicesLength };
 	}
+
+	// 创建顶点缓冲区
+	createPointBuffers(device: GPUDevice, vertices: Float32Array): { verticesBuffer: GPUBuffer, vertexCount: number } {
+		const verticesBuffer = device.createBuffer({
+			size: vertices.byteLength,
+			usage: GPUBufferUsage.VERTEX,
+			mappedAtCreation: true,
+		});
+		new Float32Array(verticesBuffer.getMappedRange()).set(vertices);
+		verticesBuffer.unmap();
+
+		// 顶点数量由数据长度除以每个顶点的分量数得出
+		// 如果每个顶点由2个浮点数组成（例如，2D坐标），则分量数为2
+		const vertexCount = vertices.length / 2;
+
+		return { verticesBuffer, vertexCount };
+	}
+
 
 	calculateAffineMatrix(
 		canvasWidth: number, 
@@ -229,48 +235,83 @@ class WebGPU {
 			colorAttachments: [{
 				view: textureView,
 				clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
-				loadOp: "clear",
+				loadOp: "load",
 				storeOp: "store",
 			}]
 		});
-
+		
+		
 		for (const primitive of layer.data) {
-			const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device, primitive.vertices, primitive.indices);
+			// const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device, primitive.vertices, primitive.indices);
+			if (!primitive.vertices.length) continue;
 			
-			let pipeline 
+			const entries: GPUBindGroupEntry[] = [{
+				binding: 0,
+				resource: { buffer: mat4Buffer }
+			}]
 			switch(primitive.type) {
 				case 'point':
-					pipeline = this.pipelinePoint;
+					this.setupRenderPassPoint(renderPass, entries, primitive.vertices);
 					break;
 				case 'line':
-					pipeline = this.pipelineLine;
+					this.setupRenderPassLine(renderPass, entries, primitive.vertices, primitive.indices);
 					break;
 				case 'triangle':
-					pipeline = this.pipelineTriangle;
+					this.setupRenderPassTriangle(renderPass, entries, primitive.vertices, primitive.indices);
 					break;	
 				default:
 					throw new Error('primitive type not supported')
 			}
-
-			const bindGroup = this.device.createBindGroup({
-				layout: pipeline!.getBindGroupLayout(0),
-				entries: [{
-					binding: 0,
-					resource: { buffer: mat4Buffer },
-				}],
-			})
-			// 执行绘制命令
-			renderPass.setPipeline(pipeline!);
-			renderPass.setBindGroup(0, bindGroup);
-			renderPass.setVertexBuffer(0, verticesBuffer);
-			renderPass.setIndexBuffer(indicesBuffer, 'uint16');
-			renderPass.drawIndexed(indicesLength);
 		}
 		renderPass.end();
 
 		// 提交命令
 		this.device.queue.submit([commandEncoder.finish()]);
 	};
+
+
+	// 渲染通道设置
+	setupRenderPassPoint(renderPass: GPURenderPassEncoder, entries: GPUBindGroupEntry[], vertices: Float32Array) {
+		const { verticesBuffer, vertexCount } = this.createPointBuffers(this.device!, vertices);
+		const bindGroup = this.device!.createBindGroup({
+			layout: this.pointPipeline!.getBindGroupLayout(0),
+			entries,
+		})
+
+		renderPass.setPipeline(this.pointPipeline!)
+		renderPass.setBindGroup(0, bindGroup);;
+		renderPass.setVertexBuffer(0, verticesBuffer);
+		renderPass.draw(vertexCount);
+	}
+	setupRenderPassLine(renderPass: GPURenderPassEncoder, entries: GPUBindGroupEntry[], vertices: Float32Array, indices: Uint16Array) {
+		const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device!, vertices, indices);
+		const bindGroup = this.device!.createBindGroup({
+			layout: this.linePipeline!.getBindGroupLayout(0),
+			entries,
+		})
+
+		renderPass.setPipeline(this.linePipeline!);
+		renderPass.setBindGroup(0, bindGroup);
+		renderPass.setVertexBuffer(0, verticesBuffer);
+		renderPass.setIndexBuffer(indicesBuffer, 'uint16');
+		renderPass.drawIndexed(indicesLength);
+	}
+	setupRenderPassTriangle(renderPass: GPURenderPassEncoder, entries: GPUBindGroupEntry[], vertices: Float32Array, indices: Uint16Array) {
+		const { verticesBuffer, indicesBuffer, indicesLength } = this.createBuffers(this.device!, vertices, indices);
+		const bindGroup = this.device!.createBindGroup({
+			layout: this.trianglePipeline!.getBindGroupLayout(0),
+			entries,
+		})
+
+		renderPass.setPipeline(this.trianglePipeline!);
+		renderPass.setBindGroup(0, bindGroup);
+		renderPass.setVertexBuffer(0, verticesBuffer);
+		renderPass.setIndexBuffer(indicesBuffer, 'uint16');
+		renderPass.drawIndexed(indicesLength);
+	}
+
+
+
 }
 
 export default WebGPU;

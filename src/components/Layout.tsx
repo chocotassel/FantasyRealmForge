@@ -16,14 +16,14 @@ function Layout() {
 		});
 
 		map.initGPU().then(() => {
-			map.addSource('map', 'src/assets/data/world-geojson.json', {}, () => {
-					console.log('source added');
-				}
-			)
-			// map.addSource('test', 'src/assets/data/geography-data.json', () => {
-			// 		console.log('test added');
+			// map.addSource('map', 'src/assets/data/world-geojson.json', {}, () => {
+			// 		console.log('source added');
 			// 	}
 			// )
+			map.addSource('test', 'src/assets/data/geography-data.json', () => {
+					console.log('test added');
+				}
+			)
 		}).catch((err) => {
 			console.error(err);
 		})

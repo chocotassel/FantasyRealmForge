@@ -3,7 +3,7 @@ import lodash from 'lodash';
 import WebGPU from './engine/webgpu';
 import Parser from './data/parser';
 
-import type { GeoJson, MapOptions, Point, Layer, Primitive } from '../types';
+import type { GeoJson, MapOptions, Point, Layer } from '../types';
 
 
 /**
@@ -61,9 +61,9 @@ class map {
         this._lastMousePosition = null;
     }
 
-    async initGPU(): Promise<void>{
+    async initGPU(options?: any): Promise<void>{
         try {
-            await this._WebGPU.initialize(this._canvas);
+            await this._WebGPU.initialize(this._canvas, options);
             return 
         } catch (error) {
             console.error(error);
@@ -238,7 +238,6 @@ class map {
             if(!layer) throw new Error('数据源解析失败');
             this._activeLayer.add(id);
             this._layers.set(id, layer);
-            console.log(layer);
             
             this.render();
             if(success) success();
@@ -253,9 +252,6 @@ class map {
         this._layers.delete(id);
     }
 
-    // 加载数据
-    async load(){
-    }
 }
 
 export default map;
