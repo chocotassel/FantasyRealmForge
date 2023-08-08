@@ -39,7 +39,7 @@ class map {
         
         this._container = container || document.body;
         
-        this._style = options?.style || "mapbox://styles/mapbox/streets-v11";
+        this._style = options?.style || "3d";
         this._center = options?.center || [0, 0];
         this._zoom = options?.zoom || 1;
         this._bearing = options?.bearing || 0;
@@ -82,23 +82,25 @@ class map {
     // 设置地图交互
     handleWheel = lodash.throttle( (event: WheelEvent) => {
         event.preventDefault();
-        const mousePointBeforeZoom  = [
-            this.center[0] + (event.offsetX / this.canvas.width - 0.5) / this.zoom * 360,
-            this.center[1] - (event.offsetY / this.canvas.height - 0.5) / this.zoom * 180 
-        ];
-        // console.log(this.center);
+        // const mousePointBeforeZoom  = [
+        //     this.center[0] + (event.offsetX / this.canvas.width - 0.5) / this.zoom * 360,
+        //     this.center[1] - (event.offsetY / this.canvas.height - 0.5) / this.zoom * 180 
+        // ];
+        // // console.log(this.center);
+        // this.zoom = this.zoom * Math.pow(0.99, event.deltaY * 0.1);
+        // const mousePointAfterZoom = [
+        //     this.center[0] + (event.offsetX / this.canvas.width - 0.5) / this.zoom * 360,
+        //     this.center[1] - (event.offsetY / this.canvas.height - 0.5) / this.zoom * 180
+        // ];
+        // this.center[0] += (mousePointBeforeZoom[0] - mousePointAfterZoom[0]);
+        // this.center[1] += (mousePointBeforeZoom[1] - mousePointAfterZoom[1]);
+        
+        // if (event.deltaY > 0 && !this.boundary_check(this.center[1])) {
+        //     this.center = [this.center[0], this.center[1] > 0 ? this.getBoundary() : -this.getBoundary()];
+        // }
+        
         this.zoom = this.zoom * Math.pow(0.99, event.deltaY * 0.1);
-        const mousePointAfterZoom = [
-            this.center[0] + (event.offsetX / this.canvas.width - 0.5) / this.zoom * 360,
-            this.center[1] - (event.offsetY / this.canvas.height - 0.5) / this.zoom * 180
-        ];
-        this.center[0] += (mousePointBeforeZoom[0] - mousePointAfterZoom[0]);
-        this.center[1] += (mousePointBeforeZoom[1] - mousePointAfterZoom[1]);
-        
-        if (event.deltaY > 0 && !this.boundary_check(this.center[1])) {
-            this.center = [this.center[0], this.center[1] > 0 ? this.getBoundary() : -this.getBoundary()];
-        }
-        
+        // this.center = [this.center[0], this.center[1] + event.deltaY * 0.0002];
     }, 10);
 
     handleMouseDown (event: MouseEvent) {
@@ -117,31 +119,56 @@ class map {
     handleMouseMove = lodash.throttle((event: MouseEvent) => {
         if (!this._lastMousePosition) return;
 
-        const dx = (event.clientX - this._lastMousePosition[0]) / window.innerWidth * 360 / this.zoom;
+        const dx = (event.clientX - this._lastMousePosition[0]) / window.innerWidth  * 180 / this.zoom;
         const dy = (event.clientY - this._lastMousePosition[1]) / window.innerHeight * 180 / this.zoom;
         this._lastMousePosition = [event.clientX, event.clientY]; // 更新 lastMousePosition 为当前鼠标位置
         
 
         // 检查是否超出范围 newOffsetY > 90 / zoom
-        const newOffsetY = this.center[1] + dy;
-        if (this.boundary_check(newOffsetY)){
-            this.center = [this.center[0] - dx, newOffsetY];
-        } else {
-            this.center = [this.center[0] - dx, this.center[1]];
-        }
+        // const newOffsetY = this.center[1] + dy;
+        // if (this.boundary_check(newOffsetY)){
+        //     this.center = [this.center[0] - dx, newOffsetY];
+        // } else {
+        //     this.center = [this.center[0] - dx, this.center[1]];
+        // }
 
         // this.center = [this.center[0] + dx, this.center[1] - dy];
         // console.log(this.center);
+
+        // this.center = [this.center[0] - dx, this.center[1] + dy];
+            
+        let x = this.center[0]
+        let y = this.center[1]
+
+        // 对经度的处理
+        if (this.center[0] - dx > 180) {
+            x = this.center[0] - dx - 360
+        } else if (this.center[0] - dx < -180) {
+            x = this.center[0] - dx + 360
+        } else {
+            x = this.center[0] - dx
+        }
+
+        // 对纬度的处理，平滑地靠近极点
+        const poleProximity = Math.abs(90 - Math.abs(y + dy));
+        if (poleProximity < 10) { // 当距离极点小于10度时
+            const scaleFactor = poleProximity / 10;
+            y += dy * scaleFactor; // 减小纬度的变化量
+        } else {
+            y += dy;
+        }
+
+        this.center = [x, y];
     }, 10);
 
-    boundary_check(y: number) {
-        const range_ = this.getBoundary();
-        return y >= -range_ && y <= range_
-    }
+    // boundary_check(y: number) {
+    //     const range_ = this.getBoundary();
+    //     return y >= -range_ && y <= range_
+    // }
 
-    getBoundary() {
-        return 90 * (1 - 1 / this.zoom);
-    }
+    // getBoundary() {
+    //     return 90 * (1 - 1 / this.zoom);
+    // }
 
     // updateCenter = lodash.throttle((x: number, y: number) => this.center = [x, y], 100);
       
@@ -164,7 +191,8 @@ class map {
 
     // 中心点。
     get center() { return this._center; }
-    set center(center: [number, number]) { 
+    set center(center: [number, number]) {
+        center = [Math.min(Math.max(-180, center[0]), 180), Math.min(Math.max(-90, center[1]), 90)];
         this._center = center; 
         this.render();
     }
@@ -172,7 +200,8 @@ class map {
     // 缩放级别。
     get zoom() { return this._zoom; }
     set zoom(zoom: number) { 
-        this._zoom = Math.min(Math.max(1, zoom), 10); 
+        this._zoom = Math.min(Math.max(0.1, zoom), 10); 
+        // this._zoom = zoom;
         this.render();
     }
 
