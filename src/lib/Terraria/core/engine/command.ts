@@ -25,17 +25,6 @@ class Command {
     finish() {
         return this.commandEncoder.finish();
     }
-    
-    // public static createCommandEncoder(
-    //     device: GPUDevice,
-    //     style: string,
-    // ) {
-	// 	const commandEncoder = device.createCommandEncoder();
-	// 	const renderPassDescriptor = this.createRenderPassDescriptor(style);
-	// 	const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
-
-    //     return commandEncoder;
-    // }
 
 	// 创建渲染通道描述符
 	createRenderPassDescriptor(

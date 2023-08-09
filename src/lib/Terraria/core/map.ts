@@ -4,8 +4,6 @@ import WebGPU from './engine/webgpu';
 import Parser from './data/parser';
 
 import type { GeoJson, MapOptions, Point, Layer } from '../types';
-import { render } from 'react-dom';
-import { log } from 'console';
 
 
 /**

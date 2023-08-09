@@ -1,5 +1,5 @@
 import { vec3, mat4 } from "gl-matrix";
-import { AffineOptions, Point } from "../../types";
+import { AffineOptions } from "../../types";
 
 
 
@@ -78,58 +78,83 @@ class BindGroup {
 	}
 
 
+    static mercatorProjection(longitude: number, latitude: number): [number, number] {
+        // 首先将经度和纬度转换为弧度
+        const lonRad = (Math.PI / 180) * longitude;
+        const latRad = (Math.PI / 180) * latitude;
+      
+        // 使用墨卡托投影公式进行转换
+        const x = lonRad;
+        const y = Math.log(Math.tan((Math.PI / 4) + (latRad / 2)));
+      
+        // 将原始的范围-π, π; -∞, +∞映射到-2, 2; -1, 1
+        const mappedX = (x / Math.PI);
+        const mappedY = (y / Math.PI); // 注意: y的范围在极限情况下是-∞, +∞，通常的纬度范围不会达到这些极值
+      
+        return [mappedX, mappedY];
+      }
+
+
 	// 计算仿射矩阵
 	static calculateAffineMatrix(
         affineOptions: AffineOptions
 	): Float32Array {
-        const { canvasWidth, canvasHeight, center, scale, bearing, pitch } = affineOptions;
+        const { canvasWidth, canvasHeight, center, scale, bearing } = affineOptions;
 		// 计算画布的宽高比，并找到适合2:1宽高比的缩放因子
 		const aspectRatio = canvasWidth / canvasHeight;
-		let scaleX, scaleY;
-		if (aspectRatio >= this.targetAspectRatio) {
-			// 如果画布宽高比大于或等于2:1，则按高度缩放
-			scaleX = scale / 180;
-			scaleY = aspectRatio / this.targetAspectRatio * scale / 90;
-		} else {
-			// 如果画布宽高比小于2:1，则按宽度缩放
-			scaleX = this.targetAspectRatio / aspectRatio * scale / 180;
-			scaleY = scale / 90;
-		}
+		// let scaleX, scaleY;
+		// if (aspectRatio >= this.targetAspectRatio) {
+		// 	// 如果画布宽高比大于或等于2:1，则按高度缩放
+		// 	scaleX = scale / 180;
+		// 	scaleY = aspectRatio / this.targetAspectRatio * scale / 90;
+		// } else {
+		// 	// 如果画布宽高比小于2:1，则按宽度缩放
+		// 	scaleX = this.targetAspectRatio / aspectRatio * scale / 180;
+		// 	scaleY = scale / 90;
+		// }
 
-		// 计算旋转角的余弦和正弦值
-		const cosBearing = Math.cos(bearing);
-		const sinBearing = Math.sin(bearing);
+		// // 计算旋转角的余弦和正弦值
+		// const cosBearing = Math.cos(bearing);
+		// const sinBearing = Math.sin(bearing);
 	
-		// // 计算俯仰角的余弦和正弦值
-		// const cosPitch = Math.cos(pitch);
-		// const sinPitch = Math.sin(pitch);
+		// // // 计算俯仰角的余弦和正弦值
+		// // const cosPitch = Math.cos(pitch);
+		// // const sinPitch = Math.sin(pitch);
 		
-		// 计算偏移量
-		const offsetX = -center[0] * scaleX
-		const offsetY = -center[1] * scaleY
+		// // 计算偏移量
+		// const offsetX = -center[0]
+		// const offsetY = -center[1]
 		
-	
-		// 构造仿射矩阵
-		return new Float32Array([
-			scaleX * cosBearing, scaleY * sinBearing, offsetX, 0,
-			-scaleX * sinBearing, scaleY * cosBearing, offsetY, 0,
-			0, 0, 1, 0,
-			0, 0, 0, 0
-		]);
 	
 		// // 构造仿射矩阵
-		// return new Float32Array([
-		// 	scaleX * cosBearing, scaleY * sinBearing * cosPitch, scaleY * sinBearing * sinPitch, offsetX,
-		// 	-scaleX * sinBearing, scaleY * cosBearing * cosPitch, scaleY * cosBearing * sinPitch, offsetY,
-		// 	0, -scaleY * sinPitch, scaleY * cosPitch, 0,
-		// 	0, 0, 0, 1
-		// ]);
+		// const mercatorMatrix = mat4.fromValues(
+		// 	scaleX * cosBearing, -scaleX * sinBearing, 0, 0,
+		// 	scaleY * sinBearing, scaleY * cosBearing, 0, 0,
+		// 	offsetX, offsetY, 1, 0,
+		// 	0, 0, 0, 0
+		// );
+        // return new Float32Array(mercatorMatrix);
+
+        const pos = this.mercatorProjection(-center[0], -center[1]);
+        
+
+        // 正交投影
+        const outMatrix = mat4.create();
+        mat4.translate(outMatrix, outMatrix, [pos[0], pos[1], 1]);
+        mat4.scale(outMatrix, outMatrix, [scale / aspectRatio / this.targetAspectRatio, scale, 1]);
+        mat4.rotate(outMatrix, outMatrix, bearing, [0, 0, 1]);
+
+        return new Float32Array(outMatrix);
 	}
 
+
+
+
+    // 计算仿射矩阵 3d
 	static calculateAffineMatrix3d(
         affineOptions: AffineOptions
 	): Float32Array {
-        const { canvasWidth, canvasHeight, center, scale, bearing, pitch } = affineOptions;
+        const { canvasWidth, canvasHeight, center, scale } = affineOptions;
 
 		const fov = 70;
 		const near = 0.1;
@@ -139,6 +164,7 @@ class BindGroup {
 	
 		const centerVec3 = vec3.fromValues(0, 0, 0);
 
+        // 相机位置
 		const cameraPosition = vec3.fromValues(
 			2 / scale * Math.sin(center[0] * Math.PI / 180) * Math.cos(center[1] * Math.PI / 180),
 			2 / scale * Math.sin(center[1] * Math.PI / 180),
@@ -146,15 +172,19 @@ class BindGroup {
 		);
 
 
+        // 投影矩阵
 		const projectionMatrix = mat4.create();
 		mat4.perspective(projectionMatrix, fov, canvasWidth / canvasHeight, near, far);
 	
+        // 视图矩阵
 		const viewMatrix = mat4.create();
 		mat4.lookAt(viewMatrix, cameraPosition, centerVec3, [0, 1, 0]);
 	
+        // 模型矩阵
 		const modelMatrix = mat4.create();
 		mat4.scale(modelMatrix, modelMatrix, [radius, radius, radius]);
 	
+
 		const finalMatrix = mat4.create();
 		mat4.multiply(finalMatrix, projectionMatrix, viewMatrix);
 		mat4.multiply(finalMatrix, finalMatrix, modelMatrix);
