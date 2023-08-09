@@ -4,6 +4,8 @@ import WebGPU from './engine/webgpu';
 import Parser from './data/parser';
 
 import type { GeoJson, MapOptions, Point, Layer } from '../types';
+import { render } from 'react-dom';
+import { log } from 'console';
 
 
 /**
@@ -186,7 +188,7 @@ class map {
     get style() { return this._style; }
     set style(style: string) { 
         this._style = style; 
-        // this.render();
+        this.render();
     }
 
     // 中心点。
@@ -247,11 +249,11 @@ class map {
     // }
 
     // 渲染
-    render() {
+    render(progress?: number) {
         for (const layerId of this._activeLayer) {
             const layer = this._layers.get(layerId);
             if (!layer) continue;
-            this._WebGPU.render(layer, this.style, this.center, this.zoom, this.bearing, this.pitch);
+            this._WebGPU.render(layer, this.style, this.center, this.zoom, this.bearing, this.pitch, progress);
         }
     }
 
@@ -279,6 +281,58 @@ class map {
     removeSource(id: string){ 
         if(!this._layers || !this._layers.has(id)) return;
         this._layers.delete(id);
+    }
+
+
+
+    // 动画
+    transform() {
+        let startTime: number | null = null;
+        console.log(this.style);
+
+        const animate = (timestamp: number) => {
+            if (startTime === null) startTime = timestamp;
+            const progress = (timestamp - startTime) / 1000; // 一秒内完成动画
+        
+            if (progress < 1) {
+                // 更新动画
+                updateAnimation(progress);
+                // 请求下一帧
+                requestAnimationFrame(animate);
+            } else {
+                // 动画完成，确保最终状态被设置
+                this.style = this.style.split('-')[1];
+                updateAnimation(1);
+            }
+        }
+        
+        const updateAnimation = (progress: number) => {
+            if (this.style === "3d-2d" || this.style === "2d-3d") {
+                this.render(progress);
+            }
+        }
+
+        // 开始动画
+        if(this.style === "3d") this.style = "3d-2d";
+        else if (this.style === "2d") this.style = "2d-3d";
+        else return 
+        requestAnimationFrame(animate);
+    }
+
+    progress: number = 0;
+    transformNext() {
+        if(this.style === "3d") this.style = "3d-2d";
+        else if (this.style === "2d") this.style = "2d-3d";
+        else return 
+        
+        this.render(this.progress);
+
+        this.progress += 0.1;
+        
+        if(this.progress >= 1) {
+            this.progress = 0;
+            this.style = this.style.split('-')[1];
+        }
     }
 
 }

@@ -11,3 +11,4 @@
 
 export * from './geojson';
 export * from './map';
+export * from './data';
