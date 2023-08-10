@@ -182,6 +182,59 @@ class parser {
     }
 
 
+    static parsePolygonToLine(
+        geometries: Geometry[]
+    ): Primitive {
+        const vertices: number[] = [];
+        const indices: number[] = [];
+    
+        
+        let currentIndex = 0;
+        geometries.forEach((geometry) => {
+            if(geometry.type === 'Polygon') {
+                const contours = geometry.coordinates as number[][][];
+                contours.forEach((contour) => {
+                    const path = contour.flatMap(point => [point[0], point[1]]);
+                    vertices.push(...path);
+
+                    for (let i = 0; i < contour.length - 1; i++) {
+                        indices.push(currentIndex + i, currentIndex + i + 1);
+                    }
+                    // 连接闭环的最后一条边
+                    indices.push(currentIndex + contour.length - 1, currentIndex);
+
+                    currentIndex += contour.length;
+                });
+            } else if(geometry.type === 'MultiPolygon') {
+                const coordinates = geometry.coordinates as number[][][][];
+                if(coordinates) {
+                    (coordinates as number[][][][]).forEach((contours) => {
+                        contours.forEach((contour) => {
+                            const path = contour.flatMap(point => [point[0], point[1]]);
+                            vertices.push(...path);
+                            for (let i = 0; i < contour.length - 1; i++) {
+                                indices.push(currentIndex + i, currentIndex + i + 1);
+                            }
+                            // 连接闭环的最后一条边
+                            indices.push(currentIndex + contour.length - 1, currentIndex);
+
+                            currentIndex += contour.length;
+                        });
+                    });
+                }
+            }
+        });
+    
+        return {
+            type: 'line',
+            color: [0.5, 0.5, 0.5, 1],
+            vertices: new Float32Array(vertices),
+            indices: new Uint16Array(indices),
+        };
+    }
+    
+
+
     
 
     // static parseGeoJSONToLonLat(

@@ -3,7 +3,8 @@ import { AffineOptions } from '../../types';
 import pointWGSL from '../shader/point.wgsl';
 import defaultWGSL from '../shader/default.wgsl';
 import defaultWGSL3d from '../shader/default3d.wgsl';
-import animationWGSL3To2 from '../shader/animation.wgsl';
+import animationWGSL3To2 from '../shader/animation_3to2.wgsl';
+import animationWGSL2To3 from '../shader/animation_2to3.wgsl';
 import Pipeline from './pipeline';
 import BindGroup from './bindgroup';
 import Command from './command';
@@ -26,8 +27,8 @@ class WebGPU {
 	depthTexture?: GPUTexture;
 
 	matrixUniformBuffer?: GPUBuffer;
-	pipelineList3d2d?: pipelineList;
-	pipelineList2d3d?: pipelineList;
+	pipelineList3to2?: pipelineList;
+	pipelineList2to3?: pipelineList;
 
 
     constructor(aspectRatio: number) {
@@ -92,13 +93,21 @@ class WebGPU {
 		}
 
 
-		const pointPipeline3d2d = await Pipeline.createPipeline3d(device, animationWGSL3To2, canvasFormat, 'point-list', 'point pipeline 3d2d');
-		const linePipeline3d2d = await Pipeline.createPipeline3d(device, animationWGSL3To2, canvasFormat, 'line-list', 'line pipeline 3d2d');
-		const trianglePipeline3d2d = await Pipeline.createPipeline3d(device, animationWGSL3To2, canvasFormat, 'triangle-list', 'triangle pipeline 3d2d');
-		this.pipelineList3d2d = {
-			point: pointPipeline3d2d,
-			line: linePipeline3d2d,
-			triangle: trianglePipeline3d2d,
+		const pointPipeline3to2 = await Pipeline.createPipeline3d(device, animationWGSL3To2, canvasFormat, 'point-list', 'point pipeline 3to2');
+		const linePipeline3to2 = await Pipeline.createPipeline3d(device, animationWGSL3To2, canvasFormat, 'line-list', 'line pipeline 3to2');
+		const trianglePipeline3to2 = await Pipeline.createPipeline3d(device, animationWGSL3To2, canvasFormat, 'triangle-list', 'triangle pipeline 3to2');
+		this.pipelineList3to2 = {
+			point: pointPipeline3to2,
+			line: linePipeline3to2,
+			triangle: trianglePipeline3to2,
+		}
+		const pointPipeline2to3 = await Pipeline.createPipeline3d(device, animationWGSL2To3, canvasFormat, 'point-list', 'point pipeline 2to3');
+		const linePipeline2to3 = await Pipeline.createPipeline3d(device, animationWGSL2To3, canvasFormat, 'line-list', 'line pipeline 2to3');
+		const trianglePipeline2to3 = await Pipeline.createPipeline3d(device, animationWGSL2To3, canvasFormat, 'triangle-list', 'triangle pipeline 2to3');
+		this.pipelineList2to3 = {
+			point: pointPipeline2to3,
+			line: linePipeline2to3,
+			triangle: trianglePipeline2to3,
 		}
     }
 
@@ -108,9 +117,9 @@ class WebGPU {
 		if (style === "3d") {
 			return this.pipelineList3d!;
 		} else if (style === "3d-2d") {
-			return this.pipelineList3d2d!;
+			return this.pipelineList3to2!;
 		} else if (style === "2d-3d") {
-			return this.pipelineList2d3d!;
+			return this.pipelineList2to3!;
 		} else {
 			return this.pipelineList!;
 		} 

@@ -20,10 +20,23 @@ fn mercatorProjection(coord : vec2<f32>) -> vec2<f32> {
 
     return vec2<f32>(mappedX, mappedY);
 }
+
+fn equidistantCylindricalProjection(longitude: f32, latitude: f32, R: f32, lambda0: f32, phi0: f32) -> vec2<f32> {
+    let lambdaRad = (longitude - lambda0) * PI / 180.0;
+    let phiRad = (latitude - phi0) * PI / 180.0;
+
+    let x = R * lambdaRad;
+    let y = R * phiRad;
+
+    return vec2<f32>(x, y);
+}
+
+
 @vertex
 fn vs_main(@location(0) position: vec2<f32>) -> @builtin(position) vec4<f32> {
     // var transformedPosition = matrix * vec4<f32>(position, 1.0, 0);
-    var pos =  vec4<f32>(mercatorProjection(position), 0.0, 1.0);
+    // var pos =  vec4<f32>(mercatorProjection(position), 0.0, 1.0);
+    var pos =  vec4<f32>(equidistantCylindricalProjection(position.x, position.y, 1, 0, 0), 0.0, 1.0);
     var transformedPosition = matrix * pos;
     return vec4<f32>(transformedPosition.xy, 0.0, 1.0);
 }

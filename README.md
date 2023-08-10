@@ -234,3 +234,25 @@ map create engine -- Stacia
 }
 ```
 
+
+
+
+
+
+
+## 2. 架构
+
+初始化webGPU---配置GPU管线---录制command队列
+
+1. WebGPU
+   1. ctx
+   2. pipeline
+   3. buffer：vertices、uniform
+2. pipeline
+   1. shader
+   2. layout
+   3. topology
+   4. format
+3. command
+   1. buffer
+   2. 

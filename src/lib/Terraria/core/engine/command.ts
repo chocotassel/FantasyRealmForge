@@ -32,7 +32,7 @@ class Command {
         textureView: GPUTextureView,
         depthTextureView: GPUTextureView
     ): GPURenderPassDescriptor {
-		if (style === "3d" || style === "3d-2d") {
+		if (style === "3d" || style === "3d-2d" || style === "2d-3d") {
 			return {
 				label: 'canvas renderPass 3d',
 				colorAttachments: [{

@@ -2,7 +2,6 @@ import { vec3, mat4 } from "gl-matrix";
 import { AffineOptions } from "../../types";
 
 
-
 class BindGroup {
 
     static targetAspectRatio: number = 2;
@@ -70,7 +69,7 @@ class BindGroup {
         style: string,
         affineOptions: AffineOptions
 	) {
-		if (style === "3d" || style === "3d-2d") {
+		if (style === "3d" || style === "3d-2d" || style === "2d-3d") {
 			return this.calculateAffineMatrix3d(affineOptions);
 		} else {
 			return this.calculateAffineMatrix(affineOptions);
@@ -92,7 +91,18 @@ class BindGroup {
         const mappedY = (y / Math.PI); // 注意: y的范围在极限情况下是-∞, +∞，通常的纬度范围不会达到这些极值
       
         return [mappedX, mappedY];
-      }
+	}
+
+	static equidistantCylindricalProjection(longitude: number, latitude: number, R: number = 1, lambda0: number = 0, phi0: number = 0): [number, number] {
+		const lambdaRad = (longitude - lambda0) * (Math.PI / 180);
+		const phiRad = (latitude - phi0) * (Math.PI / 180);
+	
+		const x = R * lambdaRad;
+		const y = R * phiRad;
+	
+		return [x, y];
+	}
+	
 
 
 	// 计算仿射矩阵
@@ -127,21 +137,21 @@ class BindGroup {
 		
 	
 		// // 构造仿射矩阵
-		// const mercatorMatrix = mat4.fromValues(
+		// const matrix = mat4.fromValues(
 		// 	scaleX * cosBearing, -scaleX * sinBearing, 0, 0,
 		// 	scaleY * sinBearing, scaleY * cosBearing, 0, 0,
 		// 	offsetX, offsetY, 1, 0,
 		// 	0, 0, 0, 0
 		// );
-        // return new Float32Array(mercatorMatrix);
+        // return new Float32Array(matrix);
 
-        const pos = this.mercatorProjection(-center[0], -center[1]);
+        const pos = this.equidistantCylindricalProjection(-center[0], -center[1]);
         
 
         // 正交投影
         const outMatrix = mat4.create();
         mat4.translate(outMatrix, outMatrix, [pos[0], pos[1], 1]);
-        mat4.scale(outMatrix, outMatrix, [scale / aspectRatio / this.targetAspectRatio, scale, 1]);
+        mat4.scale(outMatrix, outMatrix, [scale / aspectRatio , scale, 1]);
         mat4.rotate(outMatrix, outMatrix, bearing, [0, 0, 1]);
 
         return new Float32Array(outMatrix);
@@ -156,9 +166,9 @@ class BindGroup {
 	): Float32Array {
         const { canvasWidth, canvasHeight, center, scale } = affineOptions;
 
-		const fov = 70;
-		const near = 0.1;
-		const far = 1000;
+		const fov = 70 * Math.PI / 180;
+		const near = 0.0001;
+		const far = 10000;
 	
 		const radius = 1;
 	
@@ -166,12 +176,11 @@ class BindGroup {
 
         // 相机位置
 		const cameraPosition = vec3.fromValues(
-			2 / scale * Math.sin(center[0] * Math.PI / 180) * Math.cos(center[1] * Math.PI / 180),
-			2 / scale * Math.sin(center[1] * Math.PI / 180),
-			2 / scale * Math.cos(center[0] * Math.PI / 180) * Math.cos(center[1] * Math.PI / 180),
+			1 / scale * Math.sin(center[0] * Math.PI / 180) * Math.cos(center[1] * Math.PI / 180),
+			1 / scale * Math.sin(center[1] * Math.PI / 180),
+			1 / scale * Math.cos(center[0] * Math.PI / 180) * Math.cos(center[1] * Math.PI / 180),
 		);
-
-
+	
         // 投影矩阵
 		const projectionMatrix = mat4.create();
 		mat4.perspective(projectionMatrix, fov, canvasWidth / canvasHeight, near, far);

@@ -41,7 +41,7 @@ class map {
         
         this._style = options?.style || "3d";
         this._center = options?.center || [0, 0];
-        this._zoom = options?.zoom || 1;
+        this._zoom = options?.zoom || 0.5;
         this._bearing = options?.bearing || 0;
         this._pitch = options?.pitch || 0;
 
@@ -99,7 +99,13 @@ class map {
         //     this.center = [this.center[0], this.center[1] > 0 ? this.getBoundary() : -this.getBoundary()];
         // }
         
-        this.zoom = this.zoom * Math.pow(0.99, event.deltaY * 0.1);
+        // 缩放因子，趋近于0或1时
+        const reducingFactor = 1 - Math.abs(this.zoom * 2 - 1);
+
+        this.zoom -= event.deltaY * 0.001 * reducingFactor;
+
+        // this.zoom = (this.zoom - 1) * Math.pow(0.99, - event.deltaY * 0.1) + 1;
+        
         // this.center = [this.center[0], this.center[1] + event.deltaY * 0.0002];
     }, 10);
 
@@ -193,15 +199,14 @@ class map {
     get center() { return this._center; }
     set center(center: [number, number]) {
         center = [Math.min(Math.max(-180, center[0]), 180), Math.min(Math.max(-90, center[1]), 90)];
-        this._center = center; 
+        this._center = center;
         this.render();
     }
 
     // 缩放级别。
     get zoom() { return this._zoom; }
     set zoom(zoom: number) { 
-        this._zoom = Math.min(Math.max(0.1, zoom), 10); 
-        // this._zoom = zoom;
+        this._zoom = Math.min(Math.max(0.0001, zoom), 0.9999); 
         this.render();
     }
 
