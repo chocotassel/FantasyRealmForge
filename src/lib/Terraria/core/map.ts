@@ -2,6 +2,7 @@
 import lodash from 'lodash';
 import WebGPU from './engine/webgpu';
 import Parser from './data/parser';
+// import Maker from './data/maker'
 
 import type { GeoJson, MapOptions, Point, Layer } from '../types';
 
@@ -39,7 +40,7 @@ class map {
         
         this._container = container || document.body;
         
-        this._style = options?.style || "3d";
+        this._style = options?.style || "2d";
         this._center = options?.center || [0, 0];
         this._zoom = options?.zoom || 0.5;
         this._bearing = options?.bearing || 0;
@@ -82,31 +83,10 @@ class map {
     // 设置地图交互
     handleWheel = lodash.throttle( (event: WheelEvent) => {
         event.preventDefault();
-        // const mousePointBeforeZoom  = [
-        //     this.center[0] + (event.offsetX / this.canvas.width - 0.5) / this.zoom * 360,
-        //     this.center[1] - (event.offsetY / this.canvas.height - 0.5) / this.zoom * 180 
-        // ];
-        // // console.log(this.center);
-        // this.zoom = this.zoom * Math.pow(0.99, event.deltaY * 0.1);
-        // const mousePointAfterZoom = [
-        //     this.center[0] + (event.offsetX / this.canvas.width - 0.5) / this.zoom * 360,
-        //     this.center[1] - (event.offsetY / this.canvas.height - 0.5) / this.zoom * 180
-        // ];
-        // this.center[0] += (mousePointBeforeZoom[0] - mousePointAfterZoom[0]);
-        // this.center[1] += (mousePointBeforeZoom[1] - mousePointAfterZoom[1]);
-        
-        // if (event.deltaY > 0 && !this.boundary_check(this.center[1])) {
-        //     this.center = [this.center[0], this.center[1] > 0 ? this.getBoundary() : -this.getBoundary()];
-        // }
-        
         // 缩放因子，趋近于0或1时
         const reducingFactor = 1 - Math.abs(this.zoom * 2 - 1);
 
         this.zoom -= event.deltaY * 0.001 * reducingFactor;
-
-        // this.zoom = (this.zoom - 1) * Math.pow(0.99, - event.deltaY * 0.1) + 1;
-        
-        // this.center = [this.center[0], this.center[1] + event.deltaY * 0.0002];
     }, 10);
 
     handleMouseDown (event: MouseEvent) {
@@ -192,7 +172,7 @@ class map {
     get style() { return this._style; }
     set style(style: string) { 
         this._style = style; 
-        this.render();
+        // this.render();
     }
 
     // 中心点。
@@ -270,6 +250,7 @@ class map {
             // const layer = Parser.parseGeoJSONToLonLat(data);
 
             if(!layer) throw new Error('数据源解析失败');
+            // layer.data.push(Maker.createSphereWithLatLon())
             this._activeLayer.add(id);
             this._layers.set(id, layer);
             
@@ -320,22 +301,6 @@ class map {
         else if (this.style === "2d") this.style = "2d-3d";
         else return 
         requestAnimationFrame(animate);
-    }
-
-    progress: number = 0;
-    transformNext() {
-        if(this.style === "3d") this.style = "3d-2d";
-        else if (this.style === "2d") this.style = "2d-3d";
-        else return 
-        
-        this.render(this.progress);
-
-        this.progress += 0.1;
-        
-        if(this.progress >= 1) {
-            this.progress = 0;
-            this.style = this.style.split('-')[1];
-        }
     }
 
 }

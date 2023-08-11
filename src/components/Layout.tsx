@@ -25,7 +25,6 @@ function Layout() {
 			// 	}
 			// )
 			document.getElementById('btn')?.addEventListener('click', map.transform.bind(map))
-			document.getElementById('btn-next')?.addEventListener('click', map.transformNext.bind(map))
 		}).catch((err) => {
 			console.error(err);
 		})
@@ -36,7 +35,6 @@ function Layout() {
 		<>
 			<div id='map'></div>
 			<button id='btn'>转换</button>
-			<button id='btn-next'>下一帧</button>
 		</>
     )
 }

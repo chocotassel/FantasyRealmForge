@@ -5,6 +5,8 @@ import defaultWGSL from '../shader/default.wgsl';
 import defaultWGSL3d from '../shader/default3d.wgsl';
 import animationWGSL3To2 from '../shader/animation_3to2.wgsl';
 import animationWGSL2To3 from '../shader/animation_2to3.wgsl';
+import blockWGSL from '../shader/block.wgsl';
+
 import Pipeline from './pipeline';
 import BindGroup from './bindgroup';
 import Command from './command';
@@ -29,6 +31,7 @@ class WebGPU {
 	matrixUniformBuffer?: GPUBuffer;
 	pipelineList3to2?: pipelineList;
 	pipelineList2to3?: pipelineList;
+	blockPipeline?: GPURenderPipeline;
 
 
     constructor(aspectRatio: number) {
@@ -109,6 +112,8 @@ class WebGPU {
 			line: linePipeline2to3,
 			triangle: trianglePipeline2to3,
 		}
+
+		this.blockPipeline = await Pipeline.createPipeline(device, blockWGSL, canvasFormat, 'triangle-list', 'block pipeline');
     }
 
 
@@ -161,11 +166,13 @@ class WebGPU {
 		
 		// 创建command
 		const commandEncoder = new Command(this.device, textureView, depthTextureView, style);
+		
 		for (const primitive of layer.data) {
 			if (!primitive.vertices.length) continue;
-			const pipeline = pipelineList[primitive.type];
+			const pipeline = primitive.type !== 'block' ? pipelineList[primitive.type] : this.blockPipeline;
 			
-			if (!pipeline) continue;
+			
+			if (!pipeline && primitive.type !== 'block') continue;
 			const bindGroup = BindGroup.createBindGroup(this.device, pipeline, style, affineOptions, progress);
 
 			if (primitive.type === 'point')
@@ -173,6 +180,8 @@ class WebGPU {
 			else if (primitive.type === 'line')
 				commandEncoder.setupRenderPassLine(this.device, pipeline, bindGroup, primitive.vertices, primitive.indices);
 			else if (primitive.type === 'triangle')
+				commandEncoder.setupRenderPassTriangle(this.device, pipeline, bindGroup, primitive.vertices, primitive.indices);
+			else if (primitive.type === 'block')
 				commandEncoder.setupRenderPassTriangle(this.device, pipeline, bindGroup, primitive.vertices, primitive.indices);
 			else throw new Error('Unknown primitive type.');
 		}

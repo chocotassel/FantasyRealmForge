@@ -14,14 +14,14 @@ class BindGroup {
         progress?: number
     ): GPUBindGroup {
         
-		const affineMatrix = this.createAffineMatrix(style, affineOptions);
+		const affineMatrixList = this.createAffineMatrix(style, affineOptions);
 
 		// 在GPU显存上创建一个uniform数据缓冲区
 		let uniformBufferArray
 		if (typeof progress === 'number') {
-			uniformBufferArray = this.createUniformBuffer(device, affineMatrix, new Float32Array([progress]));
+			uniformBufferArray = this.createUniformBuffer(device, ...affineMatrixList, new Float32Array([progress]));
 		} else {
-			uniformBufferArray = this.createUniformBuffer(device, affineMatrix);
+			uniformBufferArray = this.createUniformBuffer(device, ...affineMatrixList);
 		}
 		
         // 创建一个绑定组
@@ -32,8 +32,8 @@ class BindGroup {
 				resource: { buffer: uniformBufferArray[i] }
 			});
 		}
-		if (style == '3d-2d' && (entriesOfBindGroup.length !== 2)) {
-			console.log('err', entriesOfBindGroup, progress);
+		if (style == '3d-2d' && (entriesOfBindGroup.length !== 3)) {
+			console.log('err', entriesOfBindGroup, progress, style);
 		}
 
         const bindGroup = device.createBindGroup({
@@ -69,10 +69,15 @@ class BindGroup {
         style: string,
         affineOptions: AffineOptions
 	) {
-		if (style === "3d" || style === "3d-2d" || style === "2d-3d") {
-			return this.calculateAffineMatrix3d(affineOptions);
-		} else {
-			return this.calculateAffineMatrix(affineOptions);
+		if (style === "3d") {
+			return [this.calculateAffineMatrix3d(affineOptions)];
+		} else if (style === "3d-2d"){
+			return [this.calculateAffineMatrix3d(affineOptions), this.calculateAffineMatrix(affineOptions)]
+		} else if (style === "2d-3d"){
+			return [this.calculateAffineMatrix3d(affineOptions), this.calculateAffineMatrix(affineOptions)]
+		}
+		else {
+			return [this.calculateAffineMatrix(affineOptions)];
 		}
 	}
 
@@ -146,7 +151,6 @@ class BindGroup {
         // return new Float32Array(matrix);
 
         const pos = this.equidistantCylindricalProjection(-center[0], -center[1]);
-        
 
         // 正交投影
         const outMatrix = mat4.create();
