@@ -135,7 +135,7 @@ class WebGPU {
 
 	// 执行绘制命令
 	render(
-		layer: Layer,
+		layers: Layer[],
 		style: string,
 		center: Point,
 		zoom: number,
@@ -166,24 +166,25 @@ class WebGPU {
 		
 		// 创建command
 		const commandEncoder = new Command(this.device, textureView, depthTextureView, style);
-		
-		for (const primitive of layer.data) {
-			if (!primitive.vertices.length) continue;
-			const pipeline = primitive.type !== 'block' ? pipelineList[primitive.type] : this.blockPipeline;
-			
-			
-			if (!pipeline && primitive.type !== 'block') continue;
-			const bindGroup = BindGroup.createBindGroup(this.device, pipeline, style, affineOptions, progress);
+		for (const layer of layers) {
+			for (const primitive of layer.data) {
+				if (!primitive.vertices.length) continue;
+				const pipeline = primitive.type !== 'block' ? pipelineList[primitive.type] : this.blockPipeline;
+				
+				
+				if (!pipeline && primitive.type !== 'block') continue;
+				const bindGroup = BindGroup.createBindGroup(this.device, pipeline, style, affineOptions, primitive.color, progress);
 
-			if (primitive.type === 'point')
-				commandEncoder.setupRenderPassPoint(this.device, pipeline, bindGroup, primitive.vertices);
-			else if (primitive.type === 'line')
-				commandEncoder.setupRenderPassLine(this.device, pipeline, bindGroup, primitive.vertices, primitive.indices);
-			else if (primitive.type === 'triangle')
-				commandEncoder.setupRenderPassTriangle(this.device, pipeline, bindGroup, primitive.vertices, primitive.indices);
-			else if (primitive.type === 'block')
-				commandEncoder.setupRenderPassTriangle(this.device, pipeline, bindGroup, primitive.vertices, primitive.indices);
-			else throw new Error('Unknown primitive type.');
+				if (primitive.type === 'point')
+					commandEncoder.setupRenderPassPoint(this.device, pipeline, bindGroup, primitive.vertices);
+				else if (primitive.type === 'line')
+					commandEncoder.setupRenderPassLine(this.device, pipeline, bindGroup, primitive.vertices, primitive.indices);
+				else if (primitive.type === 'triangle')
+					commandEncoder.setupRenderPassTriangle(this.device, pipeline, bindGroup, primitive.vertices, primitive.indices);
+				else if (primitive.type === 'block')
+					commandEncoder.setupRenderPassTriangle(this.device, pipeline, bindGroup, primitive.vertices, primitive.indices);
+				else throw new Error('Unknown primitive type.');
+			}
 		}
 		commandEncoder.endRenderPass();
 		this.device.queue.submit([commandEncoder.finish()]);

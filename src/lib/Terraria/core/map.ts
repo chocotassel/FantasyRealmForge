@@ -233,15 +233,17 @@ class map {
 
     // 渲染
     render(progress?: number) {
+        const renderList = [];
         for (const layerId of this._activeLayer) {
             const layer = this._layers.get(layerId);
             if (!layer) continue;
-            this._WebGPU.render(layer, this.style, this.center, this.zoom, this.bearing, this.pitch, progress);
+            renderList.push(layer);
         }
+        this._WebGPU.render(renderList, this.style, this.center, this.zoom, this.bearing, this.pitch, progress);
     }
 
     // 添加一个数据源到地图上。
-    async addSource(id: string, url: string, options?: any, success?: Function, fail?: Function) {
+    async addSource(id: string, url: string, options?: any): Promise<void | Error> {
         if(!this._layers || this._layers.has(id)) return;
         try {
             const response = await fetch(url);
@@ -255,14 +257,14 @@ class map {
             this._layers.set(id, layer);
             
             this.render();
-            if(success) success();
+            return Promise.resolve();
         } catch (error) {
-            if(fail) fail(error);
+            return Promise.reject(error);
         }
     }
 
     // 从地图中移除一个数据源。
-    removeSource(id: string){ 
+    removeSource(id: string){
         if(!this._layers || !this._layers.has(id)) return;
         this._layers.delete(id);
     }
@@ -272,7 +274,6 @@ class map {
     // 动画
     transform() {
         let startTime: number | null = null;
-        console.log(this.style);
 
         const animate = (timestamp: number) => {
             if (startTime === null) startTime = timestamp;

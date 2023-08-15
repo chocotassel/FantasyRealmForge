@@ -11,6 +11,7 @@ class BindGroup {
         pipeline: GPURenderPipeline,
         style: string,
         affineOptions: AffineOptions,
+		color: number[],
         progress?: number
     ): GPUBindGroup {
         
@@ -19,9 +20,9 @@ class BindGroup {
 		// 在GPU显存上创建一个uniform数据缓冲区
 		let uniformBufferArray
 		if (typeof progress === 'number') {
-			uniformBufferArray = this.createUniformBuffer(device, ...affineMatrixList, new Float32Array([progress]));
+			uniformBufferArray = this.createUniformBuffer(device, ...affineMatrixList, new Float32Array(color), new Float32Array([progress]));
 		} else {
-			uniformBufferArray = this.createUniformBuffer(device, ...affineMatrixList);
+			uniformBufferArray = this.createUniformBuffer(device, ...affineMatrixList, new Float32Array(color));
 		}
 		
         // 创建一个绑定组
@@ -31,9 +32,6 @@ class BindGroup {
 				binding: i,
 				resource: { buffer: uniformBufferArray[i] }
 			});
-		}
-		if (style == '3d-2d' && (entriesOfBindGroup.length !== 3)) {
-			console.log('err', entriesOfBindGroup, progress, style);
 		}
 
         const bindGroup = device.createBindGroup({

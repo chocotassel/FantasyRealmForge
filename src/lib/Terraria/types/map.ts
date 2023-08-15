@@ -1,3 +1,4 @@
+import { Color } from "./data";
 import { Properties } from "./geojson";
 export type MapOptions = {
     container: string;
@@ -22,7 +23,7 @@ export interface Layer {
 
 export interface Primitive {  // 点集、线集、面集
     type: string;
-    color: number[];
+    color: Color;
     vertices: Float32Array;
     indices: Uint16Array;
 }

@@ -38,15 +38,15 @@ class Command {
 				colorAttachments: [{
 					view: textureView,
 					clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
-					loadOp: "clear",
+					loadOp: "load",
 					storeOp: "store",
 				}],
 				depthStencilAttachment: {
 					view: depthTextureView,
 					depthClearValue: 1.0,
-					depthLoadOp: 'clear',
+					depthLoadOp: 'load',
 					depthStoreOp: 'store',
-					stencilLoadOp: 'clear',
+					stencilLoadOp: 'load',
 					stencilStoreOp: 'store',
 					depthReadOnly: false,
 					stencilReadOnly: false,

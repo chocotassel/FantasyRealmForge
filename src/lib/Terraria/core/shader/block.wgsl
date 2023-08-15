@@ -1,5 +1,6 @@
 
 @group(0) @binding(0) var<uniform> matrix: mat4x4<f32>;
+@group(0) @binding(1) var<uniform> color: vec4<f32>;
 
 const PI: f32 = 3.141592653589793;
 
@@ -19,5 +20,5 @@ fn vs_main(@location(0) position: vec2<f32>) -> @builtin(position) vec4<f32> {
 
 @fragment
 fn fs_main() -> @location(0) vec4<f32> {
-    return vec4<f32>(0.0, 0.0, 1.0, 1.0);
+    return color;
 }

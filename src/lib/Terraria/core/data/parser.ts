@@ -30,13 +30,21 @@ class parser {
         //     return this.generateContourLines(geojson, options.contourInterval);
         // }
 
+
         const data: Primitive[] = [];
         
         const [points, lines, polygons] = this.classifyGeometries(geojson.features);
 
+
         const pp = this.parsePoint(points)
         const pl = this.parseLine(lines);
-        const pg = this.parsePolygon(polygons);
+        let pg: Primitive;
+
+        if (options.type === 'polygon2line') {
+            pg = this.parsePolygonToLine(polygons);
+        } else {
+            pg = this.parsePolygon(polygons);
+        }
 
         data.push(pp, pl, pg);
         
@@ -175,7 +183,7 @@ class parser {
 
         return {
             type: 'triangle',
-            color: [0.5, 0.5, 0.5, 1],
+            color: [1, 1, 1, 1],
             vertices: new Float32Array(vertices),
             indices: new Uint16Array(indices),
         };
@@ -227,7 +235,7 @@ class parser {
     
         return {
             type: 'line',
-            color: [0.5, 0.5, 0.5, 1],
+            color: [1, 0.5, 0.5, 1],
             vertices: new Float32Array(vertices),
             indices: new Uint16Array(indices),
         };

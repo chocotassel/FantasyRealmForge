@@ -8,3 +8,5 @@ export interface AffineOptions {
     bearing: number,
     pitch: number
 }
+
+export type Color = [number, number, number, number]

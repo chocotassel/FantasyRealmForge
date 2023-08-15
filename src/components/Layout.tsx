@@ -16,10 +16,16 @@ function Layout() {
 		});
 
 		map.initGPU().then(() => {
-			map.addSource('map', 'src/assets/data/world-geojson.json', {}, () => {
-					console.log('source added');
-				}
-			)
+			map.addSource('map', 'src/assets/data/world-geojson.json', {}).then(() => {
+				console.log('map added');
+			}).catch((err) => {
+				console.error(err);
+			})
+			map.addSource('map', 'src/assets/data/world-geojson.json', {type: 'polygon2line'}).then(() => {
+				console.log('map added');
+			}).catch((err) => {
+				console.error(err);
+			})
 			// map.addSource('test', 'src/assets/data/geography-data.json', () => {
 			// 		console.log('test added');
 			// 	}

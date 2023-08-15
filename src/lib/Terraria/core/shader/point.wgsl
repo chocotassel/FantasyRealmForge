@@ -1,5 +1,6 @@
 
 @group(0) @binding(0) var<uniform> matrix: mat4x4<f32>;
+@group(0) @binding(1) var<uniform> color: vec4<f32>;
 
 struct VertexOutput {
     @builtin(position) fargCoord: vec4<f32>,
@@ -26,5 +27,5 @@ fn fs_main(@builtin(position) fargCoord: vec4<f32>, @location(0) centerRadius: v
     if (distance < radius) {
         return vec4<f32>(0.0, 1.0, 0.0, 1.0);
     }
-    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    return color;
 }
