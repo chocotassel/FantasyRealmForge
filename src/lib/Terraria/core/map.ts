@@ -136,14 +136,16 @@ class map {
         }
 
         // 对纬度的处理，平滑地靠近极点
-        const poleProximity = Math.abs(90 - Math.abs(y + dy));
-        if (poleProximity < 10) { // 当距离极点小于10度时
-            const scaleFactor = poleProximity / 10;
-            y += dy * scaleFactor; // 减小纬度的变化量
-        } else {
-            y += dy;
-        }
+        // const poleProximity = Math.abs(90 - Math.abs(y + dy));
+        // if (poleProximity < 10) { // 当距离极点小于10度时
+        //     const scaleFactor = poleProximity / 10;
+        //     y += dy * scaleFactor; // 减小纬度的变化量
+        // } else {
+        //     y += dy;
+        // }
 
+        y += dy;
+        
         this.center = [x, y];
     }, 10);
 

@@ -44,9 +44,9 @@ class Command {
 				depthStencilAttachment: {
 					view: depthTextureView,
 					depthClearValue: 1.0,
-					depthLoadOp: 'load',
+					depthLoadOp: 'clear',
 					depthStoreOp: 'store',
-					stencilLoadOp: 'load',
+					stencilLoadOp: 'clear',
 					stencilStoreOp: 'store',
 					depthReadOnly: false,
 					stencilReadOnly: false,
