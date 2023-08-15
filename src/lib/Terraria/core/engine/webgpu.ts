@@ -166,6 +166,7 @@ class WebGPU {
 		
 		// 创建command
 		const commandEncoder = new Command(this.device, textureView, depthTextureView, style);
+		
 		for (const layer of layers) {
 			for (const primitive of layer.data) {
 				if (!primitive.vertices.length) continue;

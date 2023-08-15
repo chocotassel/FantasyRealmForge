@@ -143,7 +143,7 @@ class parser {
     
         return {
             type: 'line',
-            color: [0.5, 0.5, 0.5, 1],
+            color: [0.5, 0.5, 1, 1],
             vertices: new Float32Array(vertices),
             indices: new Uint16Array(indices)
         };
@@ -235,7 +235,7 @@ class parser {
     
         return {
             type: 'line',
-            color: [1, 1, 1, 1],
+            color: [0, 0, 0, 1],
             vertices: new Float32Array(vertices),
             indices: new Uint16Array(indices),
         };

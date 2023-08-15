@@ -21,7 +21,7 @@ function Layout() {
 			}).catch((err) => {
 				console.error(err);
 			})
-			map.addSource('map', 'src/assets/data/world-geojson.json', {type: 'polygon2line'}).then(() => {
+			map.addSource('map contour', 'src/assets/data/world-geojson.json', {type: 'polygon2line'}).then(() => {
 				console.log('map added');
 			}).catch((err) => {
 				console.error(err);
